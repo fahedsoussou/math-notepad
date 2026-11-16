@@ -153,10 +153,13 @@ src/
 
 ## Current status (Phase 1A — in progress 🚧)
 
-Phase 1A is "the notepad and the library", built in small steps. Step 1
-(Library) is done and tablet-tested. Step 2 (ink canvas) is built and
-verified in a desktop browser preview, but not yet tablet-tested. The
-symbol palette, settings screen, and backup are not started yet.
+Phase 1A is "the notepad and the library", built in small steps. Steps 1
+(Library) and 2 (ink canvas: draw, pan, pinch-zoom, palm rejection,
+autosave) are done and confirmed working on the actual tablet. Step 2b
+(canvas tools: pen/highlighter colour+size, stroke eraser, undo/redo) is
+built and verified in a desktop browser preview, not yet tablet-tested.
+Scratch-out, lasso select, a page-background picker, the symbol palette,
+settings screen, and backup are not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -226,7 +229,8 @@ symbol palette, settings screen, and backup are not started yet.
   behaviour of `registerType: 'autoUpdate'`, not a bug; don't chase it as
   one if a tablet test looks stale right after a push.
 
-### Step 2 — Infinite ink canvas: DONE ✅ (built; not yet tablet-tested)
+### Step 2 — Infinite ink canvas: DONE ✅ (tablet-tested — draw, pan,
+pinch-zoom, and palm rejection while writing all confirmed working)
 
 - `src/storage/db.ts` v2: added a `strokes` table (`id, pageId, createdAt`
   indexed) and an optional `Page.background` field. Purely additive — no
@@ -259,7 +263,6 @@ symbol palette, settings screen, and backup are not started yet.
     not just "any touch during a pen stroke" (which this already does).
   - Autosave: a completed stroke is persisted to Dexie on pointerup,
     fire-and-forget — drawing itself never waits on IndexedDB.
-  - Default pen is fixed (dark, 4px) — no tool switching yet; that's next.
 - `src/canvas/background.ts` — paints blank/lined/grid/dotted patterns in
   page-space (lines/dots 32 page-units apart), so grid cells scale with
   zoom and pan with content, consistent with "infinite canvas". Line width
@@ -268,23 +271,57 @@ symbol palette, settings screen, and backup are not started yet.
   `src/pages/strokeToPath.ts` is now dead code alongside `PenTestPage.tsx`,
   since nothing imports `PenTestPage` anymore; fine to delete both, not
   done yet in case anything still references them).
-- **Not implemented yet** (intentionally — small steps): tool switching
-  (highlighter, colour/thickness picker), stroke eraser, scratch-out
-  gesture, lasso select, undo/redo, and a UI to change a page's
+- **Confirmed on the actual tablet**: S Pen drawing feel, one- and
+  two-finger pan, two-finger pinch-zoom, and palm rejection while writing
+  all work.
+
+### Step 2b — Canvas tools: pen/highlighter/eraser, undo/redo — DONE ✅
+(verified in desktop browser preview; not yet tablet-tested)
+
+- `src/canvas/Toolbar.tsx` — floating bar over the canvas: Pen /
+  Highlighter / Eraser, 6 pen colours / 4 highlighter colours (swapped
+  depending on the active tool), 3 pen sizes / 2 highlighter sizes, and
+  Undo / Redo. Colours and sizes in `src/canvas/colors.ts`.
+- Highlighter strokes render at `HIGHLIGHTER_ALPHA` (0.4) opacity via
+  `ctx.globalAlpha`, so ink drawn underneath still shows through.
+- Stroke eraser: dragging over a stroke while the Eraser tool is active
+  deletes the *whole* stroke it touches (not partial/pixel erasing).
+  Hit-testing is against each stroke's line **segments**, not just its
+  stored points — a quick/sparse stroke (few points) still gets a
+  reliable hit anywhere along its visible length. Catch radius is a fixed
+  screen-pixel radius converted to page-space by the current zoom, so it
+  feels the same size on screen at any zoom level.
+- Undo/redo is an in-memory command stack (`{ type: 'add' | 'erase',
+  stroke }`) scoped to the current page visit — it resets when you leave
+  and reopen the page, it doesn't persist across reloads. That matches
+  how most editors behave and was the simplest correct option; revisit
+  only if it turns out confusing in practice.
+- **Bug found and fixed while building this**: `handleUndo`/`handleRedo`
+  originally ran their Dexie writes (`addStroke`/`deleteStroke`) *inside*
+  a `setState` updater function. React (deliberately, in StrictMode) can
+  invoke an updater function more than once per call to help surface
+  exactly this kind of impurity — here it caused `addStroke` to run twice
+  for the same stroke id and throw `ConstraintError: Key already exists`.
+  Fixed by reading the action from plain state first, then running every
+  side effect once, outside any updater. **Rule going forward: a
+  `setState(prev => ...)` updater must be a pure function of `prev` —
+  never call `addStroke`/`deleteStroke`/another setter's side effect from
+  inside one.**
+- **Not implemented yet** (intentionally — small steps): scratch-out
+  gesture, lasso select (move/copy/delete), and a UI to change a page's
   background (the Dexie field and rendering exist; nothing sets it from
   the UI yet).
-- **Needs a tablet pass specifically for**: S Pen drawing feel/latency,
-  one- and two-finger pan, two-finger pinch-zoom, and whether palm
-  rejection while writing is good enough — none of that is testable from
-  a desktop browser.
+- **Needs a tablet pass for**: whether the toolbar's touch targets (colour
+  swatches especially) are comfortably tappable with a finger, and whether
+  the eraser's catch radius feels right for an S Pen gesture rather than
+  the mouse-drag testing used to build it.
 
 ### What's still after that in Phase 1A
 
-- Canvas tools (pen colour/thickness, highlighter, eraser, scratch-out,
-  lasso, undo/redo), a background picker in the page UI, Symbol palette
-  (Greek letters + operators), Settings screen (Gemini key field,
-  Suggest/Quiet toggle, dark mode — stored but unused until Phase 1B), and
-  full-library backup export/import.
+- Scratch-out gesture, lasso select, a background picker in the page UI,
+  Symbol palette (Greek letters + operators), Settings screen (Gemini key
+  field, Suggest/Quiet toggle, dark mode — stored but unused until Phase
+  1B), and full-library backup export/import.
 
 ## What Phase 1 will need
 
