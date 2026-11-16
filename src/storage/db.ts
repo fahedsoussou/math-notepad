@@ -28,21 +28,38 @@ export interface Notebook {
   deletedAt: number | null
 }
 
+export type PageBackground = 'blank' | 'lined' | 'grid' | 'dotted'
+
 export interface Page {
   id: string
   notebookId: string
   /** Position within the notebook; pages are ordered by this, not createdAt. */
   order: number
   title: string
+  /** Added in schema v2; absent on pages written before that, default to 'blank' when reading. */
+  background?: PageBackground
   createdAt: number
   updatedAt: number
   deletedAt: number | null
+}
+
+/** A single pen/highlighter stroke, in page-space coordinates (independent of pan/zoom). */
+export interface Stroke {
+  id: string
+  pageId: string
+  tool: 'pen' | 'highlighter'
+  color: string
+  size: number
+  /** [x, y, pressure] per point, in page-space coordinates. */
+  points: [number, number, number][]
+  createdAt: number
 }
 
 class MathNotepadDB extends Dexie {
   folders!: EntityTable<Folder, 'id'>
   notebooks!: EntityTable<Notebook, 'id'>
   pages!: EntityTable<Page, 'id'>
+  strokes!: EntityTable<Stroke, 'id'>
 
   constructor() {
     super('math-notepad')
@@ -50,6 +67,12 @@ class MathNotepadDB extends Dexie {
       folders: 'id, deletedAt',
       notebooks: 'id, folderId, deletedAt, lastOpenedAt',
       pages: 'id, notebookId, deletedAt, order',
+    })
+    // v2 adds ink storage. Additive only (new table, new optional Page
+    // field) — existing folders/notebooks/pages rows are untouched, so no
+    // migration function is needed to preserve them (Rule 2).
+    this.version(2).stores({
+      strokes: 'id, pageId, createdAt',
     })
   }
 }
@@ -197,16 +220,43 @@ export async function duplicatePage(id: string): Promise<Page | null> {
   if (!source) return null
   const now = Date.now()
   const copy: Page = { ...source, id: newId(), title: `${source.title} copy`, createdAt: now, updatedAt: now, deletedAt: null }
-  await db.pages.add(copy)
+  const sourceStrokes = await db.strokes.where({ pageId: id }).toArray()
+  const copiedStrokes: Stroke[] = sourceStrokes.map((s) => ({ ...s, id: newId(), pageId: copy.id, createdAt: now }))
+  await db.transaction('rw', db.pages, db.strokes, async () => {
+    await db.pages.add(copy)
+    if (copiedStrokes.length > 0) await db.strokes.bulkAdd(copiedStrokes)
+  })
   return copy
+}
+
+export async function setPageBackground(id: string, background: PageBackground): Promise<void> {
+  await db.pages.update(id, { background, updatedAt: Date.now() })
+}
+
+// ---- Strokes ----------------------------------------------------------
+
+export async function addStroke(stroke: Stroke): Promise<void> {
+  await db.strokes.add(stroke)
+}
+
+export async function deleteStroke(id: string): Promise<void> {
+  await db.strokes.delete(id)
+}
+
+export async function deleteStrokes(ids: string[]): Promise<void> {
+  await db.strokes.bulkDelete(ids)
 }
 
 // ---- Trash (cross-type) ----------------------------------------------------------
 
 export async function emptyTrash(): Promise<void> {
-  await db.transaction('rw', db.folders, db.notebooks, db.pages, async () => {
+  await db.transaction('rw', db.folders, db.notebooks, db.pages, db.strokes, async () => {
+    const trashedPages = await db.pages.where('deletedAt').above(0).toArray()
     await db.folders.where('deletedAt').above(0).delete()
     await db.notebooks.where('deletedAt').above(0).delete()
     await db.pages.where('deletedAt').above(0).delete()
+    for (const page of trashedPages) {
+      await db.strokes.where({ pageId: page.id }).delete()
+    }
   })
 }

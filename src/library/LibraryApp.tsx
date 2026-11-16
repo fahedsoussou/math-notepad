@@ -3,7 +3,7 @@ import HomeScreen from './HomeScreen'
 import FolderScreen from './FolderScreen'
 import NotebookScreen from './NotebookScreen'
 import TrashScreen from './TrashScreen'
-import PagePlaceholder from './PagePlaceholder'
+import PageScreen from './PageScreen'
 
 type Route =
   | { screen: 'home' }
@@ -53,7 +53,7 @@ export default function LibraryApp() {
       return <TrashScreen onBack={() => setRoute({ screen: 'home' })} />
     case 'page':
       return (
-        <PagePlaceholder
+        <PageScreen
           pageId={route.pageId}
           onBack={() => setRoute({ screen: 'notebook', notebookId: route.notebookId, folderId: route.folderId })}
         />

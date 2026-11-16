@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, createPage, renamePage, trashPage, duplicatePage, touchNotebookOpened } from '../storage/db'
 import * as s from './styles'
+import { useEntity } from './useEntity'
 
 interface Props {
   notebookId: string
@@ -12,7 +13,7 @@ interface Props {
 export default function NotebookScreen({ notebookId, onBack, onOpenPage }: Props) {
   const [menuFor, setMenuFor] = useState<string | null>(null)
 
-  const notebook = useLiveQuery(() => db.notebooks.get(notebookId), [notebookId])
+  const notebook = useEntity(() => db.notebooks.get(notebookId), [notebookId])
   const pages = useLiveQuery(
     () => db.pages.filter((p) => p.notebookId === notebookId && p.deletedAt === null).sortBy('order'),
     [notebookId],
@@ -21,6 +22,8 @@ export default function NotebookScreen({ notebookId, onBack, onOpenPage }: Props
   useEffect(() => {
     touchNotebookOpened(notebookId)
   }, [notebookId])
+
+  if (notebook === undefined) return null // still loading
 
   if (!notebook) {
     return (

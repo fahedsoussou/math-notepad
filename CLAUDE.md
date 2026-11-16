@@ -154,8 +154,9 @@ src/
 ## Current status (Phase 1A — in progress 🚧)
 
 Phase 1A is "the notepad and the library", built in small steps. Step 1
-(Library) is done; the ink canvas, symbol palette, settings screen, and
-backup are not started yet.
+(Library) is done and tablet-tested. Step 2 (ink canvas) is built and
+verified in a desktop browser preview, but not yet tablet-tested. The
+symbol palette, settings screen, and backup are not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -186,11 +187,8 @@ backup are not started yet.
     (native `confirm()`, irreversible).
   - `NewFolderDialog.tsx` — name + colour-swatch picker (9 preset colours
     in `colors.ts`), used for both create and edit.
-  - `PagePlaceholder.tsx` — **temporary** stand-in for a page's content.
-    Opening a page currently just shows its id and a "canvas comes next"
-    message. This exists only so library navigation (create/open/rename/
-    delete pages) could be tested before the real ink canvas exists; it
-    gets replaced wholesale by Step 2, not extended.
+  - `PageScreen.tsx` — header (Back + title) wrapping the real `InkCanvas`
+    for that page. Replaced the old `PagePlaceholder.tsx` (deleted).
 - Renames/deletes/moves use native `window.prompt()` / `window.confirm()`
   for text input and yes/no — deliberately low-effort for Phase 1A Step 1;
   revisit with proper in-app dialogs during polish (Phase 7) if they feel
@@ -201,34 +199,92 @@ backup are not started yet.
   a whole folder cascades correctly; restoring a child alone does not
   re-parent it. Not fixed yet — low priority, flag if it's confusing on the
   tablet.
-- Not yet verified on the actual tablet — needs that pass before Step 1 is
-  fully "done".
+- **Bug found and fixed during tablet testing**: folder/notebook/page
+  titles were invisible (white text on a white card) on the tablet, which
+  runs Chrome with dark mode / "auto dark theme" on. Any `<button>` or
+  plain `<div>` that doesn't set an explicit `color` can get force-darkened
+  to white text by the browser in that mode — inheriting color from an
+  ancestor isn't enough, every text-bearing style in `styles.ts` (notably
+  `card` and `headerTitle`) now sets `color` explicitly. **Keep doing this
+  for every new piece of UI** — it's an easy thing to forget and only shows
+  up once you actually test in dark mode.
+- **Also found while building Step 2**: `useLiveQuery(() => table.get(id))`
+  from `dexie-react-hooks` returns `undefined` both while the query is
+  still loading *and* when the row genuinely doesn't exist — there's no way
+  to tell those apart from the raw value. That made a perfectly real,
+  freshly-created notebook/page flash (or get stuck on) a "this was
+  deleted" message for a frame while IndexedDB answered the first query.
+  Fixed with `src/library/useEntity.ts`, a tiny wrapper that turns "not
+  found" into `null` and leaves "still loading" as `undefined`, so callers
+  can tell them apart (`FolderScreen`, `NotebookScreen`, `PageScreen` all
+  use it now). **Use `useEntity`, not a raw `useLiveQuery(() =>
+  table.get(id))`, for any future single-record lookup by id.**
+- GitHub Pages install note: the installed PWA can take **two full closes
+  and reopens** (not just switching away and back) before it picks up a
+  pushed update — the first reopen finishes installing the new service
+  worker in the background, the second one actually serves it. Expected
+  behaviour of `registerType: 'autoUpdate'`, not a bug; don't chase it as
+  one if a tablet test looks stale right after a push.
 
-### What Step 2 (infinite canvas page) will need
+### Step 2 — Infinite ink canvas: DONE ✅ (built; not yet tablet-tested)
 
-- Replace `PagePlaceholder` with the real ink canvas in `src/canvas/`,
-  reusing the Phase 0 pen-drawing logic from `PenTestPage.tsx`
-  (`perfect-freehand`, explicit canvas background paint, explicit CSS
-  width/height — see the Phase 0 gotchas below, they still apply).
-  `PenTestPage.tsx` itself is unused dead code now; fine to delete once the
-  real canvas lands.
-- Pan with one or two fingers, pinch-zoom, S Pen still draws-only, palm
-  ignored — all on top of the existing pointerType filtering.
-- Strokes need a vector data model (points, pressure, time) saved per page
-  in a new Dexie table (not yet added — pages currently have no content
-  field at all), so Step 2 is also a storage schema change: needs a Dexie
-  version bump + migration, per Rule 2.
-- Tools: pen (colour/thickness), highlighter, stroke eraser, scratch-out
-  gesture, lasso select (move/copy/delete), undo/redo.
-- Page backgrounds (blank/lined/grid/dotted) — probably a field on `Page`.
-- Autosave that can't lag drawing — likely debounced writes off the render
-  path, same spirit as the math-engine Web Worker plan for Phase 1B.
+- `src/storage/db.ts` v2: added a `strokes` table (`id, pageId, createdAt`
+  indexed) and an optional `Page.background` field. Purely additive — no
+  migration function needed, existing folders/notebooks/pages are
+  untouched (Rule 2). A `Stroke` is `{ id, pageId, tool, color, size,
+  points: [x, y, pressure][], createdAt }`, points stored in **page-space**
+  coordinates (independent of pan/zoom, so panning/zooming never touches
+  saved data). `addStroke`/`deleteStroke`/`deleteStrokes` added;
+  `duplicatePage` now also copies a page's strokes; `emptyTrash` now also
+  hard-deletes strokes belonging to permanently-deleted pages (no orphan
+  rows).
+- `src/canvas/InkCanvas.tsx` — the actual drawing surface, reusing Phase
+  0's `perfect-freehand` stroke rendering. Two stacked `<canvas>`
+  elements: `base` (background pattern + every committed stroke; repainted
+  only when the stroke list or the pan/zoom transform changes) and `live`
+  (just the in-progress stroke, repainted on every pointer move) — keeps
+  per-move-event work small regardless of how many strokes a page already
+  has. Pan/zoom transform (`offsetX, offsetY, scale`) lives in a ref, not
+  React state, since it changes every animation frame during a gesture.
+  - S Pen (and mouse, for laptop testing) draws.
+  - One-finger touch pans (via native `movementX/Y`); two-finger touch
+    pinch-zooms (zoom anchored at the old midpoint, then panned by how
+    much the midpoint itself moved, so pinch + two-finger drag combine
+    correctly). Zoom clamped to 0.2×–6×.
+  - While a pen stroke is in progress, ALL touch is ignored outright —
+    cheap palm-rejection layered on top of whatever the OS already does.
+    Not verified whether this is sufficient on the actual tablet; if palm
+    strokes still leak through during real use, the next fix is probably
+    ignoring touch points that land very close to an active pen position,
+    not just "any touch during a pen stroke" (which this already does).
+  - Autosave: a completed stroke is persisted to Dexie on pointerup,
+    fire-and-forget — drawing itself never waits on IndexedDB.
+  - Default pen is fixed (dark, 4px) — no tool switching yet; that's next.
+- `src/canvas/background.ts` — paints blank/lined/grid/dotted patterns in
+  page-space (lines/dots 32 page-units apart), so grid cells scale with
+  zoom and pan with content, consistent with "infinite canvas". Line width
+  is divided by `scale` so grid lines stay ~1 screen pixel at any zoom.
+- `src/canvas/strokeToPath.ts` — copy of the Phase 0 helper (the one in
+  `src/pages/strokeToPath.ts` is now dead code alongside `PenTestPage.tsx`,
+  since nothing imports `PenTestPage` anymore; fine to delete both, not
+  done yet in case anything still references them).
+- **Not implemented yet** (intentionally — small steps): tool switching
+  (highlighter, colour/thickness picker), stroke eraser, scratch-out
+  gesture, lasso select, undo/redo, and a UI to change a page's
+  background (the Dexie field and rendering exist; nothing sets it from
+  the UI yet).
+- **Needs a tablet pass specifically for**: S Pen drawing feel/latency,
+  one- and two-finger pan, two-finger pinch-zoom, and whether palm
+  rejection while writing is good enough — none of that is testable from
+  a desktop browser.
 
 ### What's still after that in Phase 1A
 
-- Symbol palette (Greek letters + operators), Settings screen (Gemini key
-  field, Suggest/Quiet toggle, dark mode — stored but unused until Phase
-  1B), and full-library backup export/import.
+- Canvas tools (pen colour/thickness, highlighter, eraser, scratch-out,
+  lasso, undo/redo), a background picker in the page UI, Symbol palette
+  (Greek letters + operators), Settings screen (Gemini key field,
+  Suggest/Quiet toggle, dark mode — stored but unused until Phase 1B), and
+  full-library backup export/import.
 
 ## What Phase 1 will need
 

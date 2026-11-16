@@ -29,6 +29,10 @@ export const headerTitle: CSSProperties = {
   fontSize: 20,
   fontWeight: 600,
   flex: 1,
+  // Explicit, not inherited: Chrome's auto-dark-mode forces unstyled text
+  // to white, same issue as the folder/notebook/page title bug — anything
+  // with visible text needs its own `color`, never relying on inheritance.
+  color: '#1e1e2e',
 }
 
 export const iconButton: CSSProperties = {

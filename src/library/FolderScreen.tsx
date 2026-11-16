@@ -12,6 +12,7 @@ import {
 } from '../storage/db'
 import * as s from './styles'
 import NewFolderDialog from './NewFolderDialog'
+import { useEntity } from './useEntity'
 
 interface Props {
   folderId: string
@@ -23,7 +24,7 @@ export default function FolderScreen({ folderId, onBack, onOpenNotebook }: Props
   const [showEditFolder, setShowEditFolder] = useState(false)
   const [menuFor, setMenuFor] = useState<string | null>(null)
 
-  const folder = useLiveQuery(() => db.folders.get(folderId), [folderId])
+  const folder = useEntity(() => db.folders.get(folderId), [folderId])
   const notebooks = useLiveQuery(
     () => db.notebooks.filter((n) => n.folderId === folderId && n.deletedAt === null).sortBy('name'),
     [folderId],
@@ -32,6 +33,8 @@ export default function FolderScreen({ folderId, onBack, onOpenNotebook }: Props
     () => db.folders.filter((f) => f.deletedAt === null && f.id !== folderId).sortBy('name'),
     [folderId],
   )
+
+  if (folder === undefined) return null // still loading
 
   if (!folder) {
     return (
