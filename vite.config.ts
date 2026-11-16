@@ -18,7 +18,11 @@ export default defineConfig({
         theme_color: '#1e1e2e',
         background_color: '#1e1e2e',
         display: 'standalone',
-        orientation: 'landscape',
+        // Not locking orientation to "landscape" here: if the OS rotation
+        // lock disagrees with this, Chrome can apply a CSS rotation to the
+        // page while touch/pen coordinates stay in the physical (unrotated)
+        // frame, producing a sideways pen/ink mismatch. The app can still
+        // be designed landscape-first without forcing this at the OS level.
         start_url: '/math-notepad/',
         scope: '/math-notepad/',
         icons: [
