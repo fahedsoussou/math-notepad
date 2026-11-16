@@ -154,12 +154,12 @@ src/
 ## Current status (Phase 1A — in progress 🚧)
 
 Phase 1A is "the notepad and the library", built in small steps. Steps 1
-(Library) and 2 (ink canvas: draw, pan, pinch-zoom, palm rejection,
-autosave) are done and confirmed working on the actual tablet. Step 2b
-(canvas tools: pen/highlighter colour+size, stroke eraser, undo/redo) is
-built and verified in a desktop browser preview, not yet tablet-tested.
-Scratch-out, lasso select, a page-background picker, the symbol palette,
-settings screen, and backup are not started yet.
+(Library), 2 (ink canvas: draw, pan, pinch-zoom, palm rejection, autosave),
+and 2b (canvas tools: pen/highlighter colour+size, stroke eraser,
+undo/redo) are all done and confirmed working on the actual tablet. Step
+2c (page background picker) is built and verified in a desktop browser
+preview, not yet tablet-tested. Scratch-out, lasso select, the symbol
+palette, settings screen, and backup are not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -276,7 +276,8 @@ pinch-zoom, and palm rejection while writing all confirmed working)
   all work.
 
 ### Step 2b — Canvas tools: pen/highlighter/eraser, undo/redo — DONE ✅
-(verified in desktop browser preview; not yet tablet-tested)
+(tablet-tested — toolbar, colors/sizes, highlighter, eraser, undo/redo all
+confirmed working)
 
 - `src/canvas/Toolbar.tsx` — floating bar over the canvas: Pen /
   Highlighter / Eraser, 6 pen colours / 4 highlighter colours (swapped
@@ -308,20 +309,33 @@ pinch-zoom, and palm rejection while writing all confirmed working)
   never call `addStroke`/`deleteStroke`/another setter's side effect from
   inside one.**
 - **Not implemented yet** (intentionally — small steps): scratch-out
-  gesture, lasso select (move/copy/delete), and a UI to change a page's
-  background (the Dexie field and rendering exist; nothing sets it from
-  the UI yet).
-- **Needs a tablet pass for**: whether the toolbar's touch targets (colour
-  swatches especially) are comfortably tappable with a finger, and whether
-  the eraser's catch radius feels right for an S Pen gesture rather than
-  the mouse-drag testing used to build it.
+  gesture, lasso select (move/copy/delete).
+
+### Step 2c — Page background picker: DONE ✅
+(verified in desktop browser preview; not yet tablet-tested)
+
+- `PageScreen.tsx` header got a "Background: …" button that opens a small
+  dropdown (Blank/Lined/Grid/Dotted), writing straight to
+  `setPageBackground` — `InkCanvas` already rendered all four patterns,
+  this just exposes the existing field in the UI.
+- **Bug found and fixed while building this**: the dropdown was rendering
+  *behind* `InkCanvas`'s own floating `Toolbar`, because neither of the
+  canvas's relatively-positioned wrapper divs set their own `zIndex` — so
+  they never form a CSS stacking context, and the Toolbar's `zIndex: 5`
+  ends up competing directly against the header's `zIndex` **at the page
+  root**, not scoped inside the canvas the way it looks like it should be.
+  Fixed by raising `styles.ts`'s shared `header` to `zIndex: 20`,
+  comfortably above the Toolbar. **Rule going forward: any header dropdown
+  that overlays the canvas needs the header's zIndex to stay above 5 (the
+  Toolbar's), or the canvas wrapper needs its own zIndex to properly
+  contain the Toolbar's stacking.**
 
 ### What's still after that in Phase 1A
 
-- Scratch-out gesture, lasso select, a background picker in the page UI,
-  Symbol palette (Greek letters + operators), Settings screen (Gemini key
-  field, Suggest/Quiet toggle, dark mode — stored but unused until Phase
-  1B), and full-library backup export/import.
+- Scratch-out gesture, lasso select, Symbol palette (Greek letters +
+  operators), Settings screen (Gemini key field, Suggest/Quiet toggle,
+  dark mode — stored but unused until Phase 1B), and full-library backup
+  export/import.
 
 ## What Phase 1 will need
 

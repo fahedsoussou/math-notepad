@@ -22,7 +22,14 @@ export const header: CSSProperties = {
   padding: '14px 16px',
   background: '#ffffff',
   borderBottom: '1px solid #e4e4e7',
-  zIndex: 1,
+  // Higher than InkCanvas's floating Toolbar (zIndex 5). Neither the
+  // canvas's relatively-positioned wrapper divs set their own zIndex, so
+  // they don't form a stacking context — the Toolbar's zIndex competes
+  // directly against this one at the page root, not scoped to the canvas.
+  // Keep this above 5 (or give the canvas wrapper its own stacking
+  // context) so a header dropdown, like the page-background menu, is
+  // never covered by the canvas toolbar underneath it.
+  zIndex: 20,
 }
 
 export const headerTitle: CSSProperties = {
