@@ -107,15 +107,16 @@ src/
 4. **Commit after each working step**, with a clear message of what changed
    and why.
 
-## Current status (Phase 0)
+## Current status (Phase 0 — DONE ✅)
 
 - Vite + React + TypeScript project scaffolded at the repo root.
 - `vite-plugin-pwa` configured: manifest (name "Math Notepad", short name
-  "MathPad", landscape, standalone display) + service worker for offline use.
+  "MathPad", standalone display) + service worker for offline use.
+  (Not forcing `orientation: 'landscape'` — see gotcha below.)
 - Icons generated from `public/favicon.svg` into the PWA PNG sizes.
 - Folder structure above created with placeholder `.gitkeep` files.
-- `src/pages/PenTestPage.tsx` is the entire app for now: a full-screen,
-  low-latency canvas that draws smooth pressure-sensitive strokes for
+- `src/pages/PenTestPage.tsx` is the entire app for now: a full-screen
+  canvas that draws smooth pressure-sensitive strokes for
   `pointerType === 'pen'` (and mouse, for laptop testing), ignores
   `pointerType === 'touch'`, has a Clear button, and shows a pen
   events/second counter.
@@ -123,6 +124,32 @@ src/
   deploys to GitHub Pages on every push to `main`.
 - `vite.config.ts` sets `base: '/math-notepad/'` to match the GitHub Pages
   repo path (`https://<username>.github.io/math-notepad/`).
+- **Verified on the actual Galaxy Tab S8 Ultra**: installs from the GitHub
+  Pages link, opens offline (airplane mode tested), and the S Pen draws
+  accurately and smoothly.
+
+### Gotchas hit and fixed in Phase 0 (useful for Phase 1's real canvas)
+
+1. **Black canvas on first touch.** A `<canvas>` context created with
+   `{ desynchronized: true }` rendered solid black instead of transparent
+   on this device/Chrome combo until explicitly painted. Fix: don't rely on
+   canvas transparency — always paint an explicit background color after
+   every resize/clear, and avoid `desynchronized: true` unless proven
+   necessary later.
+2. **`<canvas>` needs an explicit CSS size.** `<canvas>` is a "replaced
+   element" — `position: absolute; inset: 0` alone does NOT stretch it to
+   fill its container the way it does a `<div>`. Without an explicit CSS
+   `width`/`height` (e.g. `100%`), it renders at its *intrinsic* size, which
+   for a canvas is its `width`/`height` **attributes** (the physical
+   drawing-buffer resolution set in JS, e.g. `window.innerWidth * dpr`).
+   That made the canvas render ~2x too big and get clipped by the viewport,
+   so touch position and drawn ink disagreed more the further from the
+   top-left corner you drew. **Always set explicit CSS width/height on any
+   canvas**, separate from its drawing-buffer resolution.
+3. A small lag between the raw pointer position and the rendered ink tip is
+   expected — `perfect-freehand`'s `streamline`/`smoothing` options trade
+   responsiveness for smoother curves. Tune those values, don't "fix" this
+   as if it were a bug.
 
 ## What Phase 1 will need
 
