@@ -155,11 +155,12 @@ src/
 
 Phase 1A is "the notepad and the library", built in small steps. Steps 1
 (Library), 2 (ink canvas: draw, pan, pinch-zoom, palm rejection, autosave),
-and 2b (canvas tools: pen/highlighter colour+size, stroke eraser,
-undo/redo) are all done and confirmed working on the actual tablet. Step
-2c (page background picker) is built and verified in a desktop browser
-preview, not yet tablet-tested. Scratch-out, lasso select, the symbol
-palette, settings screen, and backup are not started yet.
+2b (canvas tools: pen/highlighter colour+size, stroke eraser, undo/redo),
+and 2c (page background picker) are all done and confirmed working on the
+actual tablet. Step 2d (scratch-out gesture) is built and verified with
+synthetic pointer events in a desktop browser, not yet tablet-tested.
+Lasso select, the symbol palette, settings screen, and backup are not
+started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -308,11 +309,10 @@ confirmed working)
   `setState(prev => ...)` updater must be a pure function of `prev` —
   never call `addStroke`/`deleteStroke`/another setter's side effect from
   inside one.**
-- **Not implemented yet** (intentionally — small steps): scratch-out
-  gesture, lasso select (move/copy/delete).
+- **Not implemented yet** (intentionally — small steps): lasso select
+  (move/copy/delete).
 
-### Step 2c — Page background picker: DONE ✅
-(verified in desktop browser preview; not yet tablet-tested)
+### Step 2c — Page background picker: DONE ✅ (tablet-tested)
 
 - `PageScreen.tsx` header got a "Background: …" button that opens a small
   dropdown (Blank/Lined/Grid/Dotted), writing straight to
@@ -330,11 +330,37 @@ confirmed working)
   Toolbar's), or the canvas wrapper needs its own zIndex to properly
   contain the Toolbar's stacking.**
 
+### Step 2d — Scratch-out gesture: DONE ✅ (built; not yet tablet-tested)
+
+- In `InkCanvas.tsx`, `isScratchGesture(points)` runs on every finished
+  pen/highlighter stroke (not the Eraser tool — that already erases). It
+  flags a gesture as "scratch, not ink" when its drawn path is much longer
+  than its own bounding-box diagonal (≥2.5×, i.e. it keeps covering the
+  same small area instead of moving on) **and** its direction reverses
+  sharply (>107°) at least 3 times — a deliberate back-and-forth scribble,
+  not an ordinary letter or line. When flagged, the gesture is never saved
+  as ink; instead every point along it runs through the same `eraseAt`
+  hit-testing the Eraser tool uses, so it deletes whatever strokes it
+  crossed.
+- Verified with synthetic pointer events in a desktop browser: a straight
+  line stays as ink, a genuine back-and-forth scribble is detected and
+  erases (no ink left behind), and a forward-advancing wavy line (moves
+  steadily sideways while wiggling, not true back-and-forth) correctly
+  stays as ink rather than being treated as scratch-out.
+- **Needs a tablet pass specifically for**: real S Pen scribbling has
+  pressure and natural hand jitter that synthetic mouse-event testing
+  can't reproduce — the 2.5× length and 3-reversal thresholds in
+  `isScratchGesture` were picked by reasoning about the geometry, not
+  tuned against a real gesture. If normal handwriting (especially fast
+  cursive loops, or crossing a 't'/'x') gets misdetected as scratch-out
+  and erased, or a genuine scratch-out doesn't register, loosen/tighten
+  those two numbers rather than redesigning the approach.
+
 ### What's still after that in Phase 1A
 
-- Scratch-out gesture, lasso select, Symbol palette (Greek letters +
-  operators), Settings screen (Gemini key field, Suggest/Quiet toggle,
-  dark mode — stored but unused until Phase 1B), and full-library backup
+- Lasso select, Symbol palette (Greek letters + operators), Settings
+  screen (Gemini key field, Suggest/Quiet toggle, dark mode — stored but
+  unused until Phase 1B), and full-library backup
   export/import.
 
 ## What Phase 1 will need

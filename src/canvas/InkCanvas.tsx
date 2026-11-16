@@ -51,6 +51,46 @@ function strokeHit(stroke: Stroke, px: number, py: number, radius: number): bool
   return false
 }
 
+// A "scratch-out": a short back-and-forth scribble, used to erase without
+// switching to the Eraser tool. Heuristic: the path covers much more
+// ground than its own bounding box (it doubles back on itself) and reverses
+// direction several times — a deliberate zigzag, not an ordinary letter or
+// line (which mostly moves in one direction).
+function isScratchGesture(points: PagePoint[]): boolean {
+  if (points.length < 6) return false
+
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  let pathLength = 0
+  for (let i = 0; i < points.length; i++) {
+    const [x, y] = points[i]
+    minX = Math.min(minX, x)
+    minY = Math.min(minY, y)
+    maxX = Math.max(maxX, x)
+    maxY = Math.max(maxY, y)
+    if (i > 0) pathLength += Math.hypot(x - points[i - 1][0], y - points[i - 1][1])
+  }
+  const diagonal = Math.hypot(maxX - minX, maxY - minY)
+  if (diagonal < 1) return false
+
+  let reversals = 0
+  for (let i = 2; i < points.length; i++) {
+    const d1x = points[i - 1][0] - points[i - 2][0]
+    const d1y = points[i - 1][1] - points[i - 2][1]
+    const d2x = points[i][0] - points[i - 1][0]
+    const d2y = points[i][1] - points[i - 1][1]
+    const mag1 = Math.hypot(d1x, d1y)
+    const mag2 = Math.hypot(d2x, d2y)
+    if (mag1 === 0 || mag2 === 0) continue
+    const cosAngle = (d1x * d2x + d1y * d2y) / (mag1 * mag2)
+    if (cosAngle < -0.3) reversals++
+  }
+
+  return pathLength > diagonal * 2.5 && reversals >= 3
+}
+
 /**
  * The infinite ink canvas for one page. S Pen (and mouse, for laptop
  * testing) draws; touch pans (one finger) and pinch-zooms (two fingers).
@@ -348,6 +388,16 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       redrawLive()
 
       if (points.length < 2) return // a tap, not a stroke
+
+      if (isScratchGesture(points)) {
+        // Erase whatever this scribble crossed instead of drawing it —
+        // same hit-testing as the Eraser tool, just along every point of
+        // this gesture rather than a live pointer drag.
+        erasedThisDrag.current = new Set()
+        for (const [px, py] of points) eraseAt(px, py)
+        return
+      }
+
       const stroke: Stroke = {
         id: newId(),
         pageId,
@@ -362,7 +412,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       setRedoStack([])
       addStroke(stroke)
     },
-    [activeColor, activeSize, finishTouch, pageId, tool],
+    [activeColor, activeSize, eraseAt, finishTouch, pageId, tool],
   )
 
   // Side effects (persisting to Dexie, touching the *other* stack) must not
