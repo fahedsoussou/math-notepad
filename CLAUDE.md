@@ -107,7 +107,7 @@ src/
 4. **Commit after each working step**, with a clear message of what changed
    and why.
 
-## Current status (Phase 0 — DONE ✅)
+## Phase 0 history (DONE ✅)
 
 - Vite + React + TypeScript project scaffolded at the repo root.
 - `vite-plugin-pwa` configured: manifest (name "Math Notepad", short name
@@ -151,16 +151,88 @@ src/
    responsiveness for smoother curves. Tune those values, don't "fix" this
    as if it were a bug.
 
+## Current status (Phase 1A — in progress 🚧)
+
+Phase 1A is "the notepad and the library", built in small steps. Step 1
+(Library) is done; the ink canvas, symbol palette, settings screen, and
+backup are not started yet.
+
+### Step 1 — Library: DONE ✅
+
+- `src/storage/db.ts`: Dexie (IndexedDB) schema — `folders`, `notebooks`,
+  `pages` tables. Deletion is **soft** (`deletedAt` timestamp, not row
+  removal) so Trash can restore anything; "Empty Trash" is the only
+  permanent delete, and it requires an in-app confirm. CRUD + trash/restore/
+  duplicate/move helper functions live here (`createFolder`, `trashNotebook`,
+  `duplicatePage`, `emptyTrash`, etc.) — screens call these, they never talk
+  to Dexie directly.
+- `src/storage/persist.ts`: calls `navigator.storage.persist()` once on
+  app start (best-effort; some browsers auto-grant, some refuse — either way
+  is fine, nothing depends on it synchronously).
+- `src/library/`: the whole library UI, state-based navigation (no router —
+  nav is shallow: home → folder → notebook → page, plus a trash screen).
+  - `LibraryApp.tsx` — top-level screen switch, owns the current route.
+  - `HomeScreen.tsx` — folder grid + colour dot, "Recent notebooks" (last
+    8 by `lastOpenedAt`), Trash button with a live count, "+ Folder", and a
+    "+ Quick notebook" escape hatch that doesn't require making a folder
+    first (auto-creates/reuses an "Unfiled" folder).
+  - `FolderScreen.tsx` — notebooks in a folder; rename/recolour/delete the
+    folder itself; per-notebook rename/duplicate/move-to-another-folder/
+    delete via an inline "⋯ Options" menu.
+  - `NotebookScreen.tsx` — pages in a notebook (ordered by `order`, not
+    creation time); rename/duplicate/delete per page; opening a notebook
+    stamps `lastOpenedAt` for the Recent list.
+  - `TrashScreen.tsx` — restore any folder/notebook/page, or "Empty Trash"
+    (native `confirm()`, irreversible).
+  - `NewFolderDialog.tsx` — name + colour-swatch picker (9 preset colours
+    in `colors.ts`), used for both create and edit.
+  - `PagePlaceholder.tsx` — **temporary** stand-in for a page's content.
+    Opening a page currently just shows its id and a "canvas comes next"
+    message. This exists only so library navigation (create/open/rename/
+    delete pages) could be tested before the real ink canvas exists; it
+    gets replaced wholesale by Step 2, not extended.
+- Renames/deletes/moves use native `window.prompt()` / `window.confirm()`
+  for text input and yes/no — deliberately low-effort for Phase 1A Step 1;
+  revisit with proper in-app dialogs during polish (Phase 7) if they feel
+  bad on the tablet.
+- **Known limitation**: if a notebook/page is restored from Trash while its
+  parent folder/notebook is still in Trash, it becomes orphaned (not
+  reachable from Home, though it may still show under "Recent"). Restoring
+  a whole folder cascades correctly; restoring a child alone does not
+  re-parent it. Not fixed yet — low priority, flag if it's confusing on the
+  tablet.
+- Not yet verified on the actual tablet — needs that pass before Step 1 is
+  fully "done".
+
+### What Step 2 (infinite canvas page) will need
+
+- Replace `PagePlaceholder` with the real ink canvas in `src/canvas/`,
+  reusing the Phase 0 pen-drawing logic from `PenTestPage.tsx`
+  (`perfect-freehand`, explicit canvas background paint, explicit CSS
+  width/height — see the Phase 0 gotchas below, they still apply).
+  `PenTestPage.tsx` itself is unused dead code now; fine to delete once the
+  real canvas lands.
+- Pan with one or two fingers, pinch-zoom, S Pen still draws-only, palm
+  ignored — all on top of the existing pointerType filtering.
+- Strokes need a vector data model (points, pressure, time) saved per page
+  in a new Dexie table (not yet added — pages currently have no content
+  field at all), so Step 2 is also a storage schema change: needs a Dexie
+  version bump + migration, per Rule 2.
+- Tools: pen (colour/thickness), highlighter, stroke eraser, scratch-out
+  gesture, lasso select (move/copy/delete), undo/redo.
+- Page backgrounds (blank/lined/grid/dotted) — probably a field on `Page`.
+- Autosave that can't lag drawing — likely debounced writes off the render
+  path, same spirit as the math-engine Web Worker plan for Phase 1B.
+
+### What's still after that in Phase 1A
+
+- Symbol palette (Greek letters + operators), Settings screen (Gemini key
+  field, Suggest/Quiet toggle, dark mode — stored but unused until Phase
+  1B), and full-library backup export/import.
+
 ## What Phase 1 will need
 
-- Replace `PenTestPage` with the real ink canvas (`src/canvas/`), capable of
-  holding many strokes, not just one at a time, with pan/zoom.
 - A basic recognition step (even a simple/placeholder one at first) to turn
   strokes into a math expression string.
 - Wire up Pyodide + SymPy in a Web Worker (`src/math-engine/`) so typing/
   writing `expr =` returns a solved result.
-- Start the Dexie storage layer (`src/storage/`) so pages persist across
-  reloads — this is also when Rule 2 (never delete user notes) starts to
-  matter in practice.
-- Basic library navigation (`src/library/`): at least one notebook/page,
-  even before folders exist.

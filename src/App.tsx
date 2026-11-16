@@ -1,9 +1,13 @@
-import PenTestPage from './pages/PenTestPage'
+import { useEffect } from 'react'
+import LibraryApp from './library/LibraryApp'
+import { requestPersistentStorage } from './storage/persist'
 
-// Phase 0: the app is just the S Pen test page.
-// Real features (ink canvas, recognition, math engine, library) come in later phases.
 function App() {
-  return <PenTestPage />
+  useEffect(() => {
+    requestPersistentStorage()
+  }, [])
+
+  return <LibraryApp />
 }
 
 export default App
