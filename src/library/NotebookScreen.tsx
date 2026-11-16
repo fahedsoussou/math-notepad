@@ -71,10 +71,7 @@ export default function NotebookScreen({ notebookId, onBack, onOpenPage }: Props
       <div style={s.grid}>
         {pages?.map((p, i) => (
           <div key={p.id} style={{ ...s.card, cursor: 'default' }}>
-            <button
-              style={{ background: 'none', border: 'none', textAlign: 'left', padding: 0, cursor: 'pointer' }}
-              onClick={() => onOpenPage(p.id)}
-            >
+            <button style={s.cardTitleButton} onClick={() => onOpenPage(p.id)}>
               <div style={{ fontWeight: 600 }}>{p.title || `Page ${i + 1}`}</div>
               <div style={{ fontSize: 12, color: '#71717a' }}>
                 Updated {new Date(p.updatedAt).toLocaleDateString()}

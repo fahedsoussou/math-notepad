@@ -80,9 +80,27 @@ export const card: CSSProperties = {
   padding: 14,
   borderRadius: 12,
   background: 'white',
+  color: '#1e1e2e',
   border: '1px solid #e4e4e7',
   cursor: 'pointer',
   textAlign: 'left',
+}
+
+/**
+ * Style for a plain-looking <button> used only as a clickable title inside a
+ * card (e.g. a notebook/page name). Buttons don't inherit text colour from
+ * their container in every browser — on Android Chrome in dark mode an
+ * unstyled button defaults to white text, which made card titles invisible
+ * on a white card. Always set color explicitly here instead of relying on
+ * inheritance.
+ */
+export const cardTitleButton: CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: '#1e1e2e',
+  textAlign: 'left',
+  padding: 0,
+  cursor: 'pointer',
 }
 
 export const emptyState: CSSProperties = {

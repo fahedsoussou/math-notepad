@@ -100,10 +100,7 @@ export default function FolderScreen({ folderId, onBack, onOpenNotebook }: Props
       <div style={s.grid}>
         {notebooks?.map((n) => (
           <div key={n.id} style={{ ...s.card, cursor: 'default' }}>
-            <button
-              style={{ background: 'none', border: 'none', textAlign: 'left', padding: 0, cursor: 'pointer' }}
-              onClick={() => onOpenNotebook(n.id)}
-            >
+            <button style={s.cardTitleButton} onClick={() => onOpenNotebook(n.id)}>
               <div style={{ fontWeight: 600 }}>{n.name}</div>
             </button>
             <button style={s.iconButton} onClick={() => setMenuFor(menuFor === n.id ? null : n.id)}>
