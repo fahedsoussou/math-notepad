@@ -12,6 +12,8 @@ interface Props {
   canRedo: boolean
   onUndo: () => void
   onRedo: () => void
+  scratchOutEnabled: boolean
+  onToggleScratchOut: () => void
 }
 
 const barStyle: React.CSSProperties = {
@@ -53,6 +55,8 @@ export default function Toolbar({
   canRedo,
   onUndo,
   onRedo,
+  scratchOutEnabled,
+  onToggleScratchOut,
 }: Props) {
   const colors = tool === 'highlighter' ? HIGHLIGHTER_COLORS : PEN_COLORS
   const sizes = tool === 'highlighter' ? HIGHLIGHTER_SIZES : PEN_SIZES
@@ -120,6 +124,14 @@ export default function Toolbar({
           ))}
         </div>
       )}
+
+      <button
+        style={toolButtonStyle(scratchOutEnabled)}
+        onClick={onToggleScratchOut}
+        aria-label="Toggle scratch-out to erase"
+      >
+        Scratch-out: {scratchOutEnabled ? 'On' : 'Off'}
+      </button>
 
       <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
         <button

@@ -91,6 +91,18 @@ function isScratchGesture(points: PagePoint[]): boolean {
   return pathLength > diagonal * 2.5 && reversals >= 3
 }
 
+// Scratch-out only erases if it's actually drawn over existing ink —
+// otherwise a zigzag doodled on blank space (or fast cursive, which can
+// trigger the same shape heuristic) would vanish for no visible reason.
+function gestureOverlapsAnyStroke(points: PagePoint[], strokes: Stroke[], radius: number): boolean {
+  for (const stroke of strokes) {
+    for (const [px, py] of points) {
+      if (strokeHit(stroke, px, py, radius)) return true
+    }
+  }
+  return false
+}
+
 /**
  * The infinite ink canvas for one page. S Pen (and mouse, for laptop
  * testing) draws; touch pans (one finger) and pinch-zooms (two fingers).
@@ -132,9 +144,19 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
   const [undoStack, setUndoStack] = useState<UndoAction[]>([])
   const [redoStack, setRedoStack] = useState<UndoAction[]>([])
 
+  // Off by default — scratch-out can mistake fast cursive for a zigzag.
+  // Even when on, it only fires over existing ink (see
+  // gestureOverlapsAnyStroke), which rules out most false positives.
+  const [scratchOutEnabled, setScratchOutEnabled] = useState(false)
+
   const isDrawing = useRef(false)
   const currentPoints = useRef<PagePoint[]>([])
   const erasedThisDrag = useRef<Set<string>>(new Set())
+  // The tool actually in effect for the gesture currently in progress —
+  // normally just `tool`, but overridden to 'eraser' for the duration of a
+  // stroke drawn while the S Pen's side (barrel) button is held, without
+  // touching the persisted `tool` state or the Toolbar's selection.
+  const gestureToolRef = useRef<Tool>('pen')
 
   // Active touch pointers, for one-finger pan / two-finger pinch-zoom.
   const touchPoints = useRef<Map<number, { x: number; y: number }>>(new Map())
@@ -295,7 +317,15 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       isDrawing.current = true
       e.currentTarget.setPointerCapture(e.pointerId)
 
-      if (tool === 'eraser') {
+      // S Pen side (barrel) button held while touching the screen: Chrome
+      // reports this as pointerType 'pen' with the barrel-button bit (2)
+      // set in `buttons` alongside the tip bit, or occasionally the
+      // eraser-end bit (32) on styluses that report it that way. Either
+      // one acts as a temporary eraser for just this stroke.
+      const barrelButtonDown = e.pointerType === 'pen' && ((e.buttons & 2) !== 0 || (e.buttons & 32) !== 0)
+      gestureToolRef.current = barrelButtonDown ? 'eraser' : tool
+
+      if (gestureToolRef.current === 'eraser') {
         erasedThisDrag.current = new Set()
         eraseAt(px, py)
         return
@@ -356,7 +386,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       const [sx, sy] = toCanvasRelative(e)
       const [px, py] = screenToPage(sx, sy)
 
-      if (tool === 'eraser') {
+      if (gestureToolRef.current === 'eraser') {
         eraseAt(px, py)
         return
       }
@@ -364,7 +394,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       currentPoints.current.push([px, py, e.pressure || 0.5])
       redrawLive()
     },
-    [eraseAt, redrawBase, redrawLive, screenToPage, tool, toCanvasRelative],
+    [eraseAt, redrawBase, redrawLive, screenToPage, toCanvasRelative],
   )
 
   const finishTouch = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -381,7 +411,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       if (!isDrawing.current) return
       isDrawing.current = false
 
-      if (tool === 'eraser') return
+      if (gestureToolRef.current === 'eraser') return
 
       const points = currentPoints.current
       currentPoints.current = []
@@ -389,19 +419,26 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
 
       if (points.length < 2) return // a tap, not a stroke
 
-      if (isScratchGesture(points)) {
-        // Erase whatever this scribble crossed instead of drawing it —
-        // same hit-testing as the Eraser tool, just along every point of
-        // this gesture rather than a live pointer drag.
-        erasedThisDrag.current = new Set()
-        for (const [px, py] of points) eraseAt(px, py)
-        return
+      if (scratchOutEnabled && isScratchGesture(points)) {
+        const radius = ERASER_SCREEN_RADIUS / transformRef.current.scale
+        if (gestureOverlapsAnyStroke(points, strokesRef.current, radius)) {
+          // Erase whatever this scribble crossed instead of drawing it —
+          // same hit-testing as the Eraser tool, just along every point of
+          // this gesture rather than a live pointer drag.
+          erasedThisDrag.current = new Set()
+          for (const [px, py] of points) eraseAt(px, py)
+          return
+        }
       }
 
       const stroke: Stroke = {
         id: newId(),
         pageId,
-        tool,
+        // Invariant: `tool` can't be 'eraser' here — if it were,
+        // gestureToolRef.current would be 'eraser' too (it only overrides
+        // to 'eraser' on top of `tool`, never away from it) and the early
+        // `return` above would already have fired.
+        tool: tool as 'pen' | 'highlighter',
         color: activeColor,
         size: activeSize,
         points,
@@ -412,7 +449,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       setRedoStack([])
       addStroke(stroke)
     },
-    [activeColor, activeSize, eraseAt, finishTouch, pageId, tool],
+    [activeColor, activeSize, eraseAt, finishTouch, pageId, scratchOutEnabled, tool],
   )
 
   // Side effects (persisting to Dexie, touching the *other* stack) must not
@@ -481,6 +518,8 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
         canRedo={redoStack.length > 0}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        scratchOutEnabled={scratchOutEnabled}
+        onToggleScratchOut={() => setScratchOutEnabled((v) => !v)}
       />
     </div>
   )

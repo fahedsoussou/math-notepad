@@ -157,10 +157,12 @@ Phase 1A is "the notepad and the library", built in small steps. Steps 1
 (Library), 2 (ink canvas: draw, pan, pinch-zoom, palm rejection, autosave),
 2b (canvas tools: pen/highlighter colour+size, stroke eraser, undo/redo),
 and 2c (page background picker) are all done and confirmed working on the
-actual tablet. Step 2d (scratch-out gesture) is built and verified with
-synthetic pointer events in a desktop browser, not yet tablet-tested.
-Lasso select, the symbol palette, settings screen, and backup are not
-started yet.
+actual tablet. Step 2d (scratch-out gesture) was tablet-tested, found to
+misfire on cursive, and reworked to be an opt-in toggle that only erases
+ink it actually overlaps — needs a second tablet pass to confirm the fix.
+Step 2e (S Pen side button = temporary eraser) is built but genuinely
+untestable without a real S Pen (see its section below). Lasso select,
+the symbol palette, settings screen, and backup are not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -330,31 +332,64 @@ confirmed working)
   Toolbar's), or the canvas wrapper needs its own zIndex to properly
   contain the Toolbar's stacking.**
 
-### Step 2d — Scratch-out gesture: DONE ✅ (built; not yet tablet-tested)
+### Step 2d — Scratch-out gesture: DONE ✅, revised after tablet feedback
 
-- In `InkCanvas.tsx`, `isScratchGesture(points)` runs on every finished
-  pen/highlighter stroke (not the Eraser tool — that already erases). It
-  flags a gesture as "scratch, not ink" when its drawn path is much longer
-  than its own bounding-box diagonal (≥2.5×, i.e. it keeps covering the
-  same small area instead of moving on) **and** its direction reverses
-  sharply (>107°) at least 3 times — a deliberate back-and-forth scribble,
-  not an ordinary letter or line. When flagged, the gesture is never saved
-  as ink; instead every point along it runs through the same `eraseAt`
-  hit-testing the Eraser tool uses, so it deletes whatever strokes it
-  crossed.
-- Verified with synthetic pointer events in a desktop browser: a straight
-  line stays as ink, a genuine back-and-forth scribble is detected and
-  erases (no ink left behind), and a forward-advancing wavy line (moves
-  steadily sideways while wiggling, not true back-and-forth) correctly
-  stays as ink rather than being treated as scratch-out.
-- **Needs a tablet pass specifically for**: real S Pen scribbling has
-  pressure and natural hand jitter that synthetic mouse-event testing
-  can't reproduce — the 2.5× length and 3-reversal thresholds in
-  `isScratchGesture` were picked by reasoning about the geometry, not
-  tuned against a real gesture. If normal handwriting (especially fast
-  cursive loops, or crossing a 't'/'x') gets misdetected as scratch-out
-  and erased, or a genuine scratch-out doesn't register, loosen/tighten
-  those two numbers rather than redesigning the approach.
+First version auto-detected any back-and-forth zigzag as scratch-out,
+always on. **Tablet-tested: cursive handwriting triggered it constantly**
+(fast cursive loops look a lot like a zigzag), so this was reworked:
+
+- **Off by default**, with a "Scratch-out: Off/On" toggle in the Toolbar
+  (`scratchOutEnabled` state in `InkCanvas.tsx`, passed to `Toolbar.tsx`).
+  Resets to off on reload (not persisted) — revisit if that's annoying in
+  practice, e.g. by moving it into the Settings screen once that exists.
+- Even when on, a gesture is only treated as scratch-out if it actually
+  overlaps existing ink (`gestureOverlapsAnyStroke`, same per-point
+  `strokeHit` test the Eraser tool uses). Writing on blank space never
+  gets erased no matter what shape it makes — this was the main ask:
+  scratch-out should only ever fire when you're visibly writing over
+  something, not as a blanket gesture classifier.
+- `isScratchGesture(points)` itself is unchanged: flags a gesture as
+  "scratch, not ink" when its path is ≥2.5× longer than its own
+  bounding-box diagonal and reverses direction sharply (>107°) at least 3
+  times. With the overlap gate added, this heuristic only has to
+  distinguish "scribble over ink" from "ordinary writing over ink" —
+  doesn't need to be perfect on its own anymore.
+- Verified (overlap gate) with synthetic pointer events: a zigzag on blank
+  space stays as ink with the toggle on; the same zigzag drawn over an
+  existing stroke erases it; an untouched stroke elsewhere is unaffected.
+- **Still needs a tablet pass** for whether the overlap gate is enough on
+  its own now, or whether `isScratchGesture`'s thresholds also need
+  loosening/tightening for real cursive-over-ink. If it still misfires,
+  tune the 2.5×/3-reversal numbers rather than redesigning the approach —
+  don't re-enable it being on by default.
+
+### Step 2e — S Pen side button as a temporary eraser: DONE ✅
+(built; **cannot be verified without the real S Pen** — see below)
+
+- In `InkCanvas.tsx`'s `handlePointerDown`, a `pointerType === 'pen'`
+  event with the barrel-button bit set in `buttons` (bit 2, or bit 32 for
+  styluses that report it as the eraser end instead) is treated as
+  "eraser for this one stroke only" — via `gestureToolRef`, a ref that
+  holds the tool actually in effect for the gesture in progress. It
+  defaults to whatever `tool` the Toolbar has selected, but is overridden
+  to `'eraser'` for a barrel-button stroke without changing the Toolbar's
+  own selection or the persisted `tool` state — release the button and
+  the very next stroke draws normally again, no explicit "switch back".
+  `handlePointerMove`/`handlePointerUp` and the live-stroke preview all
+  check `gestureToolRef.current`, not `tool`, during an active gesture.
+- **Could not be tested at all from here**: simulating a pointerdown with
+  `pointerType: 'pen'` and a fabricated `buttons` value via
+  `dispatchEvent` hits `element.setPointerCapture()` throwing
+  `NotFoundError` ("No active pointer with the given id"), because a
+  synthetic event has no real OS-level pointer session to capture —
+  browsers only let you capture a pointer that's genuinely active. Mouse
+  clicks/drags work around this by reusing the browser's one persistent
+  real pointer (id 1), which is why every other canvas feature so far
+  could be verified this way and this one couldn't. **This needs an S Pen
+  in hand to confirm at all** — specifically: does the side button
+  register as `buttons & 2` (barrel button) or `buttons & 32` (eraser
+  end) on this tablet's Chrome, does it work mid-stroke, and does
+  releasing the button correctly go back to drawing.
 
 ### What's still after that in Phase 1A
 
