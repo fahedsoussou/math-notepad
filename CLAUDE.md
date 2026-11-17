@@ -163,8 +163,10 @@ on the actual tablet. Step 2e (S Pen side button = temporary eraser) was
 tried and **dropped**: confirmed on the tablet that Chrome doesn't expose
 that button through the Pointer Events API at all, so it was removed
 rather than fixed — see its section below before anyone considers
-retrying it. Lasso select, the symbol palette, settings screen, and
-backup are not started yet.
+retrying it. Step 3 (symbol palette: Greek letters + operators, tap to
+place) is built and verified in a desktop browser preview, not yet
+tablet-tested. Lasso select, settings screen, and backup are not started
+yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -388,12 +390,48 @@ Tried, tablet-tested, confirmed impossible on this device — removed.
   `buttons` on this tablet — not worth more time without a genuinely new
   idea for how to detect it.
 
+### Step 3 — Symbol palette: DONE ✅ (built; not yet tablet-tested)
+
+- `src/storage/db.ts` v3: added a `symbols` table (`id, pageId,
+  createdAt`). Additive only, same as v2 — no migration needed. A
+  `PlacedSymbol` is `{ id, pageId, char, x, y, size, color, createdAt }`,
+  `x`/`y` in page-space (same convention as a `Stroke`'s points).
+  `addSymbol`/`deleteSymbol` added; `duplicatePage` now also copies a
+  page's symbols; `emptyTrash` now also deletes symbols belonging to
+  permanently-deleted pages — same pattern as strokes throughout.
+- `src/canvas/symbols.ts` — the palette's contents: `GREEK_LOWER` (24),
+  `GREEK_UPPER` (24), `OPERATORS` (the 12 from the spec: ∂ ∇ ∞ ∥ ∠ ≈ ≠ ≤
+  ≥ ∫ Σ √).
+- `src/canvas/SymbolPalette.tsx` — a panel opened by a new "Ω Symbols"
+  button in `Toolbar.tsx`, grouped into the three rows above.
+- `InkCanvas.tsx`'s `placeSymbol`: tapping a palette character places it
+  immediately (no second tap needed — matches the spec: "Tapping one
+  places it on the page") at the center of the current view, with small
+  random jitter so tapping the same symbol repeatedly doesn't stack
+  copies exactly on top of each other. The palette stays open so several
+  symbols can be placed in a row; "Close" dismisses it. Placement is
+  undoable (`UndoAction` gained an `'add-symbol'` variant) and persists
+  like a stroke — verified: place, undo, redo, leave the page and come
+  back, all behave correctly.
+- Rendered on the base canvas via `ctx.fillText`, alongside strokes, so
+  it scales and pans with the page exactly like ink.
+- **Not implemented yet**: deleting a placed symbol (the Eraser tool and
+  scratch-out both currently only affect strokes, not symbols — tapping
+  over a symbol with either does nothing); moving a symbol after it's
+  placed (no drag-to-reposition — if the jittered default spot isn't
+  good enough in practice, that's the next thing to add, probably
+  alongside/as part of lasso select, since "select and move" is the same
+  mechanism either way).
+- **Needs a tablet pass for**: whether the palette's buttons (40px grid
+  cells) are comfortably tappable with a finger, and whether placing at
+  "center of view + jitter" feels reasonable without drag-to-reposition.
+
 ### What's still after that in Phase 1A
 
-- Lasso select, Symbol palette (Greek letters + operators), Settings
-  screen (Gemini key field, Suggest/Quiet toggle, dark mode — stored but
-  unused until Phase 1B), and full-library backup
-  export/import.
+- Lasso select (and, per the note above, probably symbol move/delete
+  alongside it), Settings screen (Gemini key field, Suggest/Quiet
+  toggle, dark mode — stored but unused until Phase 1B), and
+  full-library backup export/import.
 
 ## What Phase 1 will need
 

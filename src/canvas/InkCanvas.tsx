@@ -3,8 +3,10 @@ import { getStroke } from 'perfect-freehand'
 import { getSvgPathFromStroke } from './strokeToPath'
 import { paintBackground, type PageViewBounds } from './background'
 import { PEN_COLORS, HIGHLIGHTER_COLORS, PEN_SIZES, HIGHLIGHTER_SIZES, HIGHLIGHTER_ALPHA, ERASER_SCREEN_RADIUS } from './colors'
+import { SYMBOL_PLACED_SIZE } from './symbols'
 import Toolbar from './Toolbar'
-import { db, addStroke, deleteStroke, type PageBackground, type Stroke } from '../storage/db'
+import SymbolPalette from './SymbolPalette'
+import { db, addStroke, deleteStroke, addSymbol, deleteSymbol, type PageBackground, type Stroke, type PlacedSymbol } from '../storage/db'
 
 export type Tool = 'pen' | 'highlighter' | 'eraser'
 
@@ -18,7 +20,10 @@ interface Transform {
   scale: number
 }
 
-type UndoAction = { type: 'add'; stroke: Stroke } | { type: 'erase'; stroke: Stroke }
+type UndoAction =
+  | { type: 'add'; stroke: Stroke }
+  | { type: 'erase'; stroke: Stroke }
+  | { type: 'add-symbol'; symbol: PlacedSymbol }
 
 function newId(): string {
   return crypto.randomUUID()
@@ -127,6 +132,9 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     strokesRef.current = strokes
   }, [strokes])
 
+  const [symbols, setSymbols] = useState<PlacedSymbol[]>([])
+  const [showSymbolPalette, setShowSymbolPalette] = useState(false)
+
   const [tool, setTool] = useState<Tool>('pen')
   const [penColor, setPenColor] = useState<string>(PEN_COLORS[0])
   const [penSize, setPenSize] = useState<number>(PEN_SIZES[1])
@@ -157,7 +165,8 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
   const touchPoints = useRef<Map<number, { x: number; y: number }>>(new Map())
   const lastPinch = useRef<{ distance: number; midX: number; midY: number } | null>(null)
 
-  // Load this page's strokes once, and reset undo/redo for the new page.
+  // Load this page's strokes and symbols once, and reset undo/redo for the
+  // new page.
   useEffect(() => {
     let cancelled = false
     setUndoStack([])
@@ -167,6 +176,12 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       .sortBy('createdAt')
       .then((loaded) => {
         if (!cancelled) setStrokes(loaded)
+      })
+    db.symbols
+      .where({ pageId })
+      .sortBy('createdAt')
+      .then((loaded) => {
+        if (!cancelled) setSymbols(loaded)
       })
     return () => {
       cancelled = true
@@ -231,7 +246,14 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     for (const s of strokes) {
       paintStroke(ctx, s.points, s.color, s.size, s.tool)
     }
-  }, [applyContentTransform, background, getViewBounds, paintStroke, strokes])
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    for (const sym of symbols) {
+      ctx.font = `${sym.size}px sans-serif`
+      ctx.fillStyle = sym.color
+      ctx.fillText(sym.char, sym.x, sym.y)
+    }
+  }, [applyContentTransform, background, getViewBounds, paintStroke, strokes, symbols])
 
   const redrawLive = useCallback(() => {
     const canvas = liveCanvasRef.current
@@ -281,6 +303,34 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     const rect = e.currentTarget.getBoundingClientRect()
     return [e.clientX - rect.left, e.clientY - rect.top]
   }, [])
+
+  // Places a symbol at the center of the current view, with a little
+  // jitter so tapping the same symbol repeatedly doesn't stack copies
+  // exactly on top of each other. The palette stays open afterward so
+  // several symbols can be placed in a row.
+  const placeSymbol = useCallback(
+    (char: string) => {
+      const canvas = liveCanvasRef.current
+      if (!canvas) return
+      const [cx, cy] = screenToPage(canvas.clientWidth / 2, canvas.clientHeight / 2)
+      const jitter = () => (Math.random() - 0.5) * 60
+      const symbol: PlacedSymbol = {
+        id: newId(),
+        pageId,
+        char,
+        x: cx + jitter(),
+        y: cy + jitter(),
+        size: SYMBOL_PLACED_SIZE,
+        color: penColor,
+        createdAt: Date.now(),
+      }
+      setSymbols((prev) => [...prev, symbol])
+      setUndoStack((prev) => [...prev, { type: 'add-symbol', symbol }])
+      setRedoStack([])
+      addSymbol(symbol)
+    },
+    [pageId, penColor, screenToPage],
+  )
 
   const eraseAt = useCallback(
     (px: number, py: number) => {
@@ -452,9 +502,12 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     if (action.type === 'add') {
       setStrokes((s) => s.filter((st) => st.id !== action.stroke.id))
       deleteStroke(action.stroke.id)
-    } else {
+    } else if (action.type === 'erase') {
       setStrokes((s) => [...s, action.stroke])
       addStroke(action.stroke)
+    } else {
+      setSymbols((s) => s.filter((sym) => sym.id !== action.symbol.id))
+      deleteSymbol(action.symbol.id)
     }
   }, [undoStack])
 
@@ -466,9 +519,12 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     if (action.type === 'add') {
       setStrokes((s) => [...s, action.stroke])
       addStroke(action.stroke)
-    } else {
+    } else if (action.type === 'erase') {
       setStrokes((s) => s.filter((st) => st.id !== action.stroke.id))
       deleteStroke(action.stroke.id)
+    } else {
+      setSymbols((s) => [...s, action.symbol])
+      addSymbol(action.symbol)
     }
   }, [redoStack])
 
@@ -505,7 +561,11 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
         onRedo={handleRedo}
         scratchOutEnabled={scratchOutEnabled}
         onToggleScratchOut={() => setScratchOutEnabled((v) => !v)}
+        onToggleSymbolPalette={() => setShowSymbolPalette((v) => !v)}
       />
+      {showSymbolPalette && (
+        <SymbolPalette onPick={placeSymbol} onClose={() => setShowSymbolPalette(false)} />
+      )}
     </div>
   )
 }

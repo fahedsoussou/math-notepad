@@ -14,6 +14,7 @@ interface Props {
   onRedo: () => void
   scratchOutEnabled: boolean
   onToggleScratchOut: () => void
+  onToggleSymbolPalette: () => void
 }
 
 const barStyle: React.CSSProperties = {
@@ -57,6 +58,7 @@ export default function Toolbar({
   onRedo,
   scratchOutEnabled,
   onToggleScratchOut,
+  onToggleSymbolPalette,
 }: Props) {
   const colors = tool === 'highlighter' ? HIGHLIGHTER_COLORS : PEN_COLORS
   const sizes = tool === 'highlighter' ? HIGHLIGHTER_SIZES : PEN_SIZES
@@ -71,6 +73,9 @@ export default function Toolbar({
       </button>
       <button style={toolButtonStyle(tool === 'eraser')} onClick={() => onToolChange('eraser')}>
         Eraser
+      </button>
+      <button style={toolButtonStyle(false)} onClick={onToggleSymbolPalette} aria-label="Open symbol palette">
+        Ω Symbols
       </button>
 
       {tool !== 'eraser' && (

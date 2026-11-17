@@ -55,11 +55,28 @@ export interface Stroke {
   createdAt: number
 }
 
+/**
+ * A Greek letter or math operator placed from the symbol palette, typed
+ * text rather than ink. `x, y` is the symbol's page-space anchor point
+ * (independent of pan/zoom, same as a Stroke's points).
+ */
+export interface PlacedSymbol {
+  id: string
+  pageId: string
+  char: string
+  x: number
+  y: number
+  size: number
+  color: string
+  createdAt: number
+}
+
 class MathNotepadDB extends Dexie {
   folders!: EntityTable<Folder, 'id'>
   notebooks!: EntityTable<Notebook, 'id'>
   pages!: EntityTable<Page, 'id'>
   strokes!: EntityTable<Stroke, 'id'>
+  symbols!: EntityTable<PlacedSymbol, 'id'>
 
   constructor() {
     super('math-notepad')
@@ -73,6 +90,11 @@ class MathNotepadDB extends Dexie {
     // migration function is needed to preserve them (Rule 2).
     this.version(2).stores({
       strokes: 'id, pageId, createdAt',
+    })
+    // v3 adds placed symbols (Greek letters/operators from the palette).
+    // Additive only, same as v2 — no migration needed.
+    this.version(3).stores({
+      symbols: 'id, pageId, createdAt',
     })
   }
 }
@@ -222,9 +244,12 @@ export async function duplicatePage(id: string): Promise<Page | null> {
   const copy: Page = { ...source, id: newId(), title: `${source.title} copy`, createdAt: now, updatedAt: now, deletedAt: null }
   const sourceStrokes = await db.strokes.where({ pageId: id }).toArray()
   const copiedStrokes: Stroke[] = sourceStrokes.map((s) => ({ ...s, id: newId(), pageId: copy.id, createdAt: now }))
-  await db.transaction('rw', db.pages, db.strokes, async () => {
+  const sourceSymbols = await db.symbols.where({ pageId: id }).toArray()
+  const copiedSymbols: PlacedSymbol[] = sourceSymbols.map((s) => ({ ...s, id: newId(), pageId: copy.id, createdAt: now }))
+  await db.transaction('rw', db.pages, db.strokes, db.symbols, async () => {
     await db.pages.add(copy)
     if (copiedStrokes.length > 0) await db.strokes.bulkAdd(copiedStrokes)
+    if (copiedSymbols.length > 0) await db.symbols.bulkAdd(copiedSymbols)
   })
   return copy
 }
@@ -247,16 +272,27 @@ export async function deleteStrokes(ids: string[]): Promise<void> {
   await db.strokes.bulkDelete(ids)
 }
 
+// ---- Symbols ----------------------------------------------------------
+
+export async function addSymbol(symbol: PlacedSymbol): Promise<void> {
+  await db.symbols.add(symbol)
+}
+
+export async function deleteSymbol(id: string): Promise<void> {
+  await db.symbols.delete(id)
+}
+
 // ---- Trash (cross-type) ----------------------------------------------------------
 
 export async function emptyTrash(): Promise<void> {
-  await db.transaction('rw', db.folders, db.notebooks, db.pages, db.strokes, async () => {
+  await db.transaction('rw', db.folders, db.notebooks, db.pages, db.strokes, db.symbols, async () => {
     const trashedPages = await db.pages.where('deletedAt').above(0).toArray()
     await db.folders.where('deletedAt').above(0).delete()
     await db.notebooks.where('deletedAt').above(0).delete()
     await db.pages.where('deletedAt').above(0).delete()
     for (const page of trashedPages) {
       await db.strokes.where({ pageId: page.id }).delete()
+      await db.symbols.where({ pageId: page.id }).delete()
     }
   })
 }
