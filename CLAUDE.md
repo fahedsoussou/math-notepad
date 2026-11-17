@@ -169,9 +169,9 @@ tablet, after being revised from an initial tap-to-center design based on
 that same tablet feedback. Step 4 (Settings screen: Gemini key,
 Suggest/Quiet, dark mode — all stored, none wired up to behaviour yet) is
 done and confirmed working on the actual tablet. Step 5 (library backup
-export/import, settings excluded on purpose) is built and verified in a
-desktop browser preview, not yet tablet-tested. Lasso select is the only
-piece of Phase 1A not started yet.
+export/import, settings excluded on purpose) is also done and confirmed
+on the tablet as a full real round trip. Lasso select is the only piece
+of Phase 1A not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -474,7 +474,7 @@ does now:
   and Suggest/Quiet toggles don't visibly change anything — confirmed
   that's expected (by design, as above), not a bug.
 
-### Step 5 — Library backup export/import: DONE ✅ (built; not yet tablet-tested)
+### Step 5 — Library backup export/import: DONE ✅ (tablet-tested)
 
 - `src/storage/backup.ts` — `buildBackup()` gathers every folder,
   notebook, page, stroke, and symbol (including trashed ones, so a
@@ -502,14 +502,9 @@ does now:
   "Export backup" and "Import backup…" (a hidden `<input type="file">`
   behind a styled button). Importing shows a confirm dialog first,
   naming the backup's date and item counts, before writing anything.
-- Verified in the desktop browser: exported shape is correct, a
-  synthetic backup file imports its folder/notebook/page correctly and
-  shows up in the library, and an invalid file is rejected with a clear
-  message instead of a crash. **Not yet tested as an actual
-  download-a-file-then-pick-it-back-up round trip on the tablet** — that
-  real end-to-end flow (does the download reach the Downloads app, does
-  the file picker find it, does a full real backup round-trip cleanly)
-  still needs a tablet pass.
+- **Confirmed on the actual tablet**: the full real round trip — export
+  downloads to the device, the file picker finds it, import merges it
+  back in cleanly — all work.
 
 ### What's still after that in Phase 1A
 
