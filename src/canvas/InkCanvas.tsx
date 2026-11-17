@@ -149,6 +149,18 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
   // gestureOverlapsAnyStroke), which rules out most false positives.
   const [scratchOutEnabled, setScratchOutEnabled] = useState(false)
 
+  // TEMPORARY diagnostic for the S Pen side-button feature: shows the raw
+  // pointerType/buttons/button values live, so we can see what this
+  // specific tablet's Chrome actually reports when the button is pressed.
+  // Remove this once that's confirmed and the detection logic is fixed.
+  const [pointerDebug, setPointerDebug] = useState('no pen/mouse event yet')
+  const lastPointerDebug = useRef('')
+  const reportPointerDebug = useCallback((text: string) => {
+    if (text === lastPointerDebug.current) return // avoid a re-render per move event when nothing changed
+    lastPointerDebug.current = text
+    setPointerDebug(text)
+  }, [])
+
   const isDrawing = useRef(false)
   const currentPoints = useRef<PagePoint[]>([])
   const erasedThisDrag = useRef<Set<string>>(new Set())
@@ -317,12 +329,13 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       isDrawing.current = true
       e.currentTarget.setPointerCapture(e.pointerId)
 
-      // S Pen side (barrel) button held while touching the screen: Chrome
-      // reports this as pointerType 'pen' with the barrel-button bit (2)
-      // set in `buttons` alongside the tip bit, or occasionally the
-      // eraser-end bit (32) on styluses that report it that way. Either
-      // one acts as a temporary eraser for just this stroke.
-      const barrelButtonDown = e.pointerType === 'pen' && ((e.buttons & 2) !== 0 || (e.buttons & 32) !== 0)
+      reportPointerDebug(`down: type=${e.pointerType} buttons=${e.buttons} button=${e.button}`)
+
+      // S Pen side (barrel) button held while touching the screen. Checking
+      // for *any* extra bit beyond the tip (buttons > 1) rather than one
+      // specific bit, since which bit this tablet's Chrome actually uses is
+      // still being confirmed via the on-screen debug readout above.
+      const barrelButtonDown = e.pointerType === 'pen' && e.buttons > 1
       gestureToolRef.current = barrelButtonDown ? 'eraser' : tool
 
       if (gestureToolRef.current === 'eraser') {
@@ -333,7 +346,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
 
       currentPoints.current = [[px, py, e.pressure || 0.5]]
     },
-    [eraseAt, screenToPage, tool, toCanvasRelative],
+    [eraseAt, reportPointerDebug, screenToPage, tool, toCanvasRelative],
   )
 
   const handlePointerMove = useCallback(
@@ -386,6 +399,8 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       const [sx, sy] = toCanvasRelative(e)
       const [px, py] = screenToPage(sx, sy)
 
+      reportPointerDebug(`move: type=${e.pointerType} buttons=${e.buttons} button=${e.button}`)
+
       if (gestureToolRef.current === 'eraser') {
         eraseAt(px, py)
         return
@@ -394,7 +409,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       currentPoints.current.push([px, py, e.pressure || 0.5])
       redrawLive()
     },
-    [eraseAt, redrawBase, redrawLive, screenToPage, toCanvasRelative],
+    [eraseAt, redrawBase, redrawLive, reportPointerDebug, screenToPage, toCanvasRelative],
   )
 
   const finishTouch = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -521,6 +536,24 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
         scratchOutEnabled={scratchOutEnabled}
         onToggleScratchOut={() => setScratchOutEnabled((v) => !v)}
       />
+      {/* TEMPORARY diagnostic — see the note by `pointerDebug` above. */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 10,
+          left: 10,
+          background: 'rgba(0,0,0,0.75)',
+          color: 'white',
+          padding: '6px 10px',
+          borderRadius: 8,
+          fontFamily: 'monospace',
+          fontSize: 13,
+          pointerEvents: 'none',
+          zIndex: 5,
+        }}
+      >
+        {pointerDebug}
+      </div>
     </div>
   )
 }
