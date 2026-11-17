@@ -304,22 +304,14 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     return [e.clientX - rect.left, e.clientY - rect.top]
   }, [])
 
-  // Places a symbol at the center of the current view, with a little
-  // jitter so tapping the same symbol repeatedly doesn't stack copies
-  // exactly on top of each other. The palette stays open afterward so
-  // several symbols can be placed in a row.
-  const placeSymbol = useCallback(
-    (char: string) => {
-      const canvas = liveCanvasRef.current
-      if (!canvas) return
-      const [cx, cy] = screenToPage(canvas.clientWidth / 2, canvas.clientHeight / 2)
-      const jitter = () => (Math.random() - 0.5) * 60
+  const placeSymbolAt = useCallback(
+    (char: string, px: number, py: number) => {
       const symbol: PlacedSymbol = {
         id: newId(),
         pageId,
         char,
-        x: cx + jitter(),
-        y: cy + jitter(),
+        x: px,
+        y: py,
         size: SYMBOL_PLACED_SIZE,
         color: penColor,
         createdAt: Date.now(),
@@ -329,8 +321,60 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       setRedoStack([])
       addSymbol(symbol)
     },
-    [pageId, penColor, screenToPage],
+    [pageId, penColor],
   )
+
+  // Dragging a symbol from the palette onto the page: `draggingSymbol`
+  // tracks the character and its current screen position (client
+  // coordinates, for the floating ghost that follows the pointer); the
+  // window-level listeners below run only while a drag is in progress,
+  // since the pointer leaves the originating palette button immediately.
+  const [draggingSymbol, setDraggingSymbol] = useState<{ char: string; clientX: number; clientY: number } | null>(
+    null,
+  )
+
+  const handleSymbolDragStart = useCallback((char: string, clientX: number, clientY: number) => {
+    setDraggingSymbol({ char, clientX, clientY })
+    setShowSymbolPalette(false) // hide it so the canvas is visible to drop onto
+  }, [])
+
+  useEffect(() => {
+    if (!draggingSymbol) return
+
+    const onMove = (e: PointerEvent) => {
+      setDraggingSymbol((prev) => (prev ? { ...prev, clientX: e.clientX, clientY: e.clientY } : prev))
+    }
+
+    const onUp = (e: PointerEvent) => {
+      const canvas = liveCanvasRef.current
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect()
+        const overCanvas =
+          e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom
+        if (overCanvas) {
+          const [px, py] = screenToPage(e.clientX - rect.left, e.clientY - rect.top)
+          placeSymbolAt(draggingSymbol.char, px, py)
+        }
+        // Dropped outside the canvas (e.g. back over the palette, or a
+        // plain tap that never left the palette button): no placement.
+      }
+      setDraggingSymbol(null)
+      setShowSymbolPalette(false)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+    // Only re-subscribe when a drag starts/ends, not on every position
+    // update within the same drag (which would tear down and rebuild the
+    // listeners on every pointermove).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draggingSymbol?.char, placeSymbolAt, screenToPage])
 
   const eraseAt = useCallback(
     (px: number, py: number) => {
@@ -564,7 +608,24 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
         onToggleSymbolPalette={() => setShowSymbolPalette((v) => !v)}
       />
       {showSymbolPalette && (
-        <SymbolPalette onPick={placeSymbol} onClose={() => setShowSymbolPalette(false)} />
+        <SymbolPalette onDragStart={handleSymbolDragStart} onClose={() => setShowSymbolPalette(false)} />
+      )}
+      {draggingSymbol && (
+        <div
+          style={{
+            position: 'fixed',
+            left: draggingSymbol.clientX,
+            top: draggingSymbol.clientY,
+            transform: 'translate(-50%, -50%)',
+            fontSize: 32,
+            color: penColor,
+            opacity: 0.85,
+            pointerEvents: 'none',
+            zIndex: 20,
+          }}
+        >
+          {draggingSymbol.char}
+        </div>
       )}
     </div>
   )

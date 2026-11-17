@@ -163,10 +163,11 @@ on the actual tablet. Step 2e (S Pen side button = temporary eraser) was
 tried and **dropped**: confirmed on the tablet that Chrome doesn't expose
 that button through the Pointer Events API at all, so it was removed
 rather than fixed — see its section below before anyone considers
-retrying it. Step 3 (symbol palette: Greek letters + operators, tap to
-place) is built and verified in a desktop browser preview, not yet
-tablet-tested. Lasso select, settings screen, and backup are not started
-yet.
+retrying it. Step 3 (symbol palette: Greek letters + operators,
+press-and-drag to place) was tablet-tested, revised from a tap-to-center
+design to drag-and-drop based on that feedback, and verified in a desktop
+browser preview — not yet confirmed again on the tablet since the
+redesign. Lasso select, settings screen, and backup are not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -390,7 +391,12 @@ Tried, tablet-tested, confirmed impossible on this device — removed.
   `buttons` on this tablet — not worth more time without a genuinely new
   idea for how to detect it.
 
-### Step 3 — Symbol palette: DONE ✅ (built; not yet tablet-tested)
+### Step 3 — Symbol palette: DONE ✅, revised after tablet feedback
+
+First version placed a tapped symbol at the view's center (plus jitter).
+**Tablet feedback: wanted press-and-drag placement instead** — hold the
+symbol, drag to where you want it, release to drop — so that's what it
+does now:
 
 - `src/storage/db.ts` v3: added a `symbols` table (`id, pageId,
   createdAt`). Additive only, same as v2 — no migration needed. A
@@ -403,28 +409,34 @@ Tried, tablet-tested, confirmed impossible on this device — removed.
   `GREEK_UPPER` (24), `OPERATORS` (the 12 from the spec: ∂ ∇ ∞ ∥ ∠ ≈ ≠ ≤
   ≥ ∫ Σ √).
 - `src/canvas/SymbolPalette.tsx` — a panel opened by a new "Ω Symbols"
-  button in `Toolbar.tsx`, grouped into the three rows above.
-- `InkCanvas.tsx`'s `placeSymbol`: tapping a palette character places it
-  immediately (no second tap needed — matches the spec: "Tapping one
-  places it on the page") at the center of the current view, with small
-  random jitter so tapping the same symbol repeatedly doesn't stack
-  copies exactly on top of each other. The palette stays open so several
-  symbols can be placed in a row; "Close" dismisses it. Placement is
-  undoable (`UndoAction` gained an `'add-symbol'` variant) and persists
-  like a stroke — verified: place, undo, redo, leave the page and come
-  back, all behave correctly.
+  button in `Toolbar.tsx`. Each character button starts a drag on
+  `onPointerDown` (not `onClick`) — a plain tap never places anything,
+  since it ends on the same button, not over the canvas.
+- `InkCanvas.tsx`: `handleSymbolDragStart` records the character and
+  starts following the pointer; a `useEffect` attaches **window-level**
+  `pointermove`/`pointerup`/`pointercancel` listeners only while a drag
+  is active, since the pointer leaves the originating palette button
+  immediately and the canvas's own pointer handlers never see it. The
+  palette hides itself the instant the drag starts (so the canvas is
+  fully visible to drop onto), and a small floating character (`position:
+  fixed`, follows the pointer, `pointerEvents: 'none'`) previews where it
+  will land. On release: if the drop point is within the live canvas's
+  bounding rect, `placeSymbolAt` creates the symbol there (converting
+  through `screenToPage`, same as ink); otherwise nothing is placed.
+- Placement is undoable (`UndoAction` gained an `'add-symbol'` variant)
+  and persists like a stroke — verified: drag-drop, undo, redo, leave the
+  page and come back, all behave correctly, including the drop landing
+  exactly where the pointer was released (not at some center/jittered
+  point).
 - Rendered on the base canvas via `ctx.fillText`, alongside strokes, so
   it scales and pans with the page exactly like ink.
-- **Not implemented yet**: deleting a placed symbol (the Eraser tool and
-  scratch-out both currently only affect strokes, not symbols — tapping
-  over a symbol with either does nothing); moving a symbol after it's
-  placed (no drag-to-reposition — if the jittered default spot isn't
-  good enough in practice, that's the next thing to add, probably
-  alongside/as part of lasso select, since "select and move" is the same
-  mechanism either way).
-- **Needs a tablet pass for**: whether the palette's buttons (40px grid
-  cells) are comfortably tappable with a finger, and whether placing at
-  "center of view + jitter" feels reasonable without drag-to-reposition.
+- **Not implemented yet**: deleting or moving a symbol *after* it's
+  already placed (the Eraser tool and scratch-out both currently only
+  affect strokes, not symbols) — likely bundled with lasso select later,
+  since "select and move" is the same mechanism either way.
+- Verified in the desktop browser preview (placed, dragged, dropped,
+  landed exactly at the release point); not yet confirmed with the real
+  S Pen on the tablet.
 
 ### What's still after that in Phase 1A
 

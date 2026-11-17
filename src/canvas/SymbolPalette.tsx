@@ -1,7 +1,7 @@
 import { GREEK_LOWER, GREEK_UPPER, OPERATORS } from './symbols'
 
 interface Props {
-  onPick: (char: string) => void
+  onDragStart: (char: string, clientX: number, clientY: number) => void
   onClose: () => void
 }
 
@@ -42,11 +42,18 @@ const charButtonStyle: React.CSSProperties = {
   color: '#1e1e2e',
   fontSize: 20,
   padding: '8px 0',
-  cursor: 'pointer',
+  cursor: 'grab',
+  touchAction: 'none', // the drag itself handles panning/scrolling, not the browser
 }
 
-/** Tapping a symbol places it on the page immediately — see InkCanvas's placeSymbol. */
-export default function SymbolPalette({ onPick, onClose }: Props) {
+/**
+ * Press a symbol and drag it onto the page to place it there — see
+ * InkCanvas's drag handling (draggingSymbol state + window pointermove/up
+ * listeners). A plain tap is also a tiny drag that ends on the same
+ * button, which InkCanvas's drop logic already treats as "not over the
+ * canvas" and ignores, so nothing is placed by tapping alone.
+ */
+export default function SymbolPalette({ onDragStart, onClose }: Props) {
   return (
     <div style={panelStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -58,11 +65,14 @@ export default function SymbolPalette({ onPick, onClose }: Props) {
           Close
         </button>
       </div>
+      <div style={{ fontSize: 12, color: '#71717a', margin: '4px 0 8px' }}>
+        Press and drag a symbol onto the page to place it.
+      </div>
 
       <div style={rowLabelStyle}>Greek — lower case</div>
       <div style={gridStyle}>
         {GREEK_LOWER.map((c) => (
-          <button key={c} style={charButtonStyle} onClick={() => onPick(c)}>
+          <button key={c} style={charButtonStyle} onPointerDown={(e) => onDragStart(c, e.clientX, e.clientY)}>
             {c}
           </button>
         ))}
@@ -71,7 +81,7 @@ export default function SymbolPalette({ onPick, onClose }: Props) {
       <div style={rowLabelStyle}>Greek — upper case</div>
       <div style={gridStyle}>
         {GREEK_UPPER.map((c) => (
-          <button key={c} style={charButtonStyle} onClick={() => onPick(c)}>
+          <button key={c} style={charButtonStyle} onPointerDown={(e) => onDragStart(c, e.clientX, e.clientY)}>
             {c}
           </button>
         ))}
@@ -80,7 +90,7 @@ export default function SymbolPalette({ onPick, onClose }: Props) {
       <div style={rowLabelStyle}>Operators</div>
       <div style={gridStyle}>
         {OPERATORS.map((c) => (
-          <button key={c} style={charButtonStyle} onClick={() => onPick(c)}>
+          <button key={c} style={charButtonStyle} onPointerDown={(e) => onDragStart(c, e.clientX, e.clientY)}>
             {c}
           </button>
         ))}
