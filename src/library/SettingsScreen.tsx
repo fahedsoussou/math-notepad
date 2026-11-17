@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { getSettings, updateSettings, DEFAULT_SETTINGS } from '../storage/db'
+import { downloadBackup, parseBackupFile, importBackup } from '../storage/backup'
 import * as s from './styles'
 
 interface Props {
@@ -59,6 +60,9 @@ export default function SettingsScreen({ onBack }: Props) {
   const [showKey, setShowKey] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [backupStatus, setBackupStatus] = useState<string | null>(null)
+
   useEffect(() => {
     setKeyDraft(settings.geminiApiKey ?? '')
   }, [settings.geminiApiKey])
@@ -72,6 +76,42 @@ export default function SettingsScreen({ onBack }: Props) {
   const clearKey = async () => {
     setKeyDraft('')
     await updateSettings({ geminiApiKey: null })
+  }
+
+  const handleExport = async () => {
+    setBackupStatus('Preparing backup…')
+    try {
+      await downloadBackup()
+      setBackupStatus('Backup downloaded.')
+    } catch {
+      setBackupStatus('Could not create the backup file.')
+    }
+    setTimeout(() => setBackupStatus(null), 3000)
+  }
+
+  const handleImportFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow picking the same file again later
+    if (!file) return
+
+    try {
+      const backup = await parseBackupFile(file)
+      const total = backup.folders.length + backup.notebooks.length + backup.pages.length
+      const ok = window.confirm(
+        `Import this backup (from ${new Date(backup.exportedAt).toLocaleString()})?\n\n` +
+          `It has ${backup.folders.length} folder(s), ${backup.notebooks.length} notebook(s), and ` +
+          `${backup.pages.length} page(s) (${total} items total). This adds to your current library — ` +
+          `it won't delete anything you have now.`,
+      )
+      if (!ok) return
+
+      setBackupStatus('Importing…')
+      await importBackup(backup)
+      setBackupStatus('Backup imported.')
+    } catch (err) {
+      setBackupStatus(err instanceof Error ? err.message : 'Could not import that file.')
+    }
+    setTimeout(() => setBackupStatus(null), 4000)
   }
 
   return (
@@ -158,6 +198,32 @@ export default function SettingsScreen({ onBack }: Props) {
               Dark
             </button>
           </div>
+        </div>
+
+        <div style={sectionStyle}>
+          <div style={labelStyle}>Library backup</div>
+          <div style={helpStyle}>
+            Export every folder, notebook, and page (including Trash) as one file you can keep
+            safe or move to another device. Importing adds a backup's contents to what you have
+            now — it never deletes anything. (The Gemini key above is never included in a
+            backup file.)
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button style={s.primaryButton} onClick={handleExport}>
+              Export backup
+            </button>
+            <button style={s.iconButton} onClick={() => fileInputRef.current?.click()}>
+              Import backup…
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              style={{ display: 'none' }}
+              onChange={handleImportFileChosen}
+            />
+          </div>
+          {backupStatus && <div style={{ ...helpStyle, marginTop: 10, marginBottom: 0 }}>{backupStatus}</div>}
         </div>
       </div>
     </div>

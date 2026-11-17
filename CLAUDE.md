@@ -168,8 +168,10 @@ press-and-drag to place) is done and confirmed working on the actual
 tablet, after being revised from an initial tap-to-center design based on
 that same tablet feedback. Step 4 (Settings screen: Gemini key,
 Suggest/Quiet, dark mode — all stored, none wired up to behaviour yet) is
-done and confirmed working on the actual tablet. Lasso select and backup
-are not started yet.
+done and confirmed working on the actual tablet. Step 5 (library backup
+export/import, settings excluded on purpose) is built and verified in a
+desktop browser preview, not yet tablet-tested. Lasso select is the only
+piece of Phase 1A not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -472,10 +474,48 @@ does now:
   and Suggest/Quiet toggles don't visibly change anything — confirmed
   that's expected (by design, as above), not a bug.
 
+### Step 5 — Library backup export/import: DONE ✅ (built; not yet tablet-tested)
+
+- `src/storage/backup.ts` — `buildBackup()` gathers every folder,
+  notebook, page, stroke, and symbol (including trashed ones, so a
+  restore can't silently lose something the user hadn't emptied from
+  Trash yet) into `{ version: 1, exportedAt, folders, notebooks, pages,
+  strokes, symbols }`. `downloadBackup()` wraps that as a JSON file and
+  triggers a normal browser download (`math-notepad-backup-YYYY-MM-DD.json`,
+  via an `<a download>` + `Blob` URL — no server involved, it's all
+  client-side). `parseBackupFile(file)` validates the shape (version tag
+  + all five arrays present) before accepting it, with a plain-language
+  error if the file's wrong or corrupted. `importBackup(backup)`
+  `bulkPut`s every row by id in one transaction.
+- **Settings (the Gemini key especially) are deliberately NOT included**
+  in the backup file — see the comment in `backup.ts`. A backup is
+  something the user might email to themselves or move via USB; the key
+  must never ride along in that file (Rule 1).
+- **Import is additive, never destructive**: `bulkPut` overwrites by id
+  but never deletes anything not in the backup, so importing can't lose
+  notes made since the backup was taken (Rule 2), and importing the same
+  file twice is harmless (second time just overwrites with identical
+  data). There's no "replace everything" option — if a clean restore onto
+  an empty library is ever wanted, that's a manual "clear library first"
+  step the UI doesn't offer yet.
+- UI lives in `SettingsScreen.tsx`'s new "Library backup" section:
+  "Export backup" and "Import backup…" (a hidden `<input type="file">`
+  behind a styled button). Importing shows a confirm dialog first,
+  naming the backup's date and item counts, before writing anything.
+- Verified in the desktop browser: exported shape is correct, a
+  synthetic backup file imports its folder/notebook/page correctly and
+  shows up in the library, and an invalid file is rejected with a clear
+  message instead of a crash. **Not yet tested as an actual
+  download-a-file-then-pick-it-back-up round trip on the tablet** — that
+  real end-to-end flow (does the download reach the Downloads app, does
+  the file picker find it, does a full real backup round-trip cleanly)
+  still needs a tablet pass.
+
 ### What's still after that in Phase 1A
 
 - Lasso select (and, per the symbol-palette note above, probably symbol
-  move/delete alongside it), and full-library backup export/import.
+  move/delete alongside it). This is genuinely the last piece of
+  Phase 1A once it's done.
 
 ## What Phase 1 will need
 
