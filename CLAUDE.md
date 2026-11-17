@@ -156,15 +156,15 @@ src/
 Phase 1A is "the notepad and the library", built in small steps. Steps 1
 (Library), 2 (ink canvas: draw, pan, pinch-zoom, palm rejection, autosave),
 2b (canvas tools: pen/highlighter colour+size, stroke eraser, undo/redo),
-and 2c (page background picker) are all done and confirmed working on the
-actual tablet. Step 2d (scratch-out gesture) was tablet-tested, found to
-misfire on cursive, and reworked to be an opt-in toggle that only erases
-ink it actually overlaps — needs a second tablet pass to confirm the fix.
-Step 2e (S Pen side button = temporary eraser) was tried and **dropped**:
-confirmed on the tablet that Chrome doesn't expose that button through
-the Pointer Events API at all, so it was removed rather than fixed — see
-its section below before anyone considers retrying it. Lasso select, the
-symbol palette, settings screen, and backup are not started yet.
+2c (page background picker), and 2d (scratch-out gesture, as an opt-in
+toggle that only erases ink it actually overlaps — fixed and confirmed
+after initially misfiring on cursive) are all done and confirmed working
+on the actual tablet. Step 2e (S Pen side button = temporary eraser) was
+tried and **dropped**: confirmed on the tablet that Chrome doesn't expose
+that button through the Pointer Events API at all, so it was removed
+rather than fixed — see its section below before anyone considers
+retrying it. Lasso select, the symbol palette, settings screen, and
+backup are not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -359,11 +359,8 @@ always on. **Tablet-tested: cursive handwriting triggered it constantly**
 - Verified (overlap gate) with synthetic pointer events: a zigzag on blank
   space stays as ink with the toggle on; the same zigzag drawn over an
   existing stroke erases it; an untouched stroke elsewhere is unaffected.
-- **Still needs a tablet pass** for whether the overlap gate is enough on
-  its own now, or whether `isScratchGesture`'s thresholds also need
-  loosening/tightening for real cursive-over-ink. If it still misfires,
-  tune the 2.5×/3-reversal numbers rather than redesigning the approach —
-  don't re-enable it being on by default.
+- **Tablet-tested after the fix: confirmed working.** Off by default,
+  cursive stays untouched, and the overlap gate behaves as intended.
 
 ### Step 2e — S Pen side button as a temporary eraser: DROPPED ❌
 
