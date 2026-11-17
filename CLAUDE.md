@@ -168,8 +168,8 @@ press-and-drag to place) is done and confirmed working on the actual
 tablet, after being revised from an initial tap-to-center design based on
 that same tablet feedback. Step 4 (Settings screen: Gemini key,
 Suggest/Quiet, dark mode — all stored, none wired up to behaviour yet) is
-built and verified in a desktop browser preview, not yet tablet-tested.
-Lasso select and backup are not started yet.
+done and confirmed working on the actual tablet. Lasso select and backup
+are not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -439,7 +439,7 @@ does now:
 - **Confirmed on the actual tablet** with the real S Pen: drag feels
   natural and the drop lands exactly where released.
 
-### Step 4 — Settings screen: DONE ✅ (built; not yet tablet-tested)
+### Step 4 — Settings screen: DONE ✅ (tablet-tested)
 
 - `src/storage/db.ts` v4: added a `settings` table holding a single row
   keyed by the fixed id `SETTINGS_ID` (`'app'`). Additive only, same
@@ -467,9 +467,10 @@ does now:
   theme to switch into yet). The screen says this plainly in its own help
   text so it's not confusing that flipping the toggle visibly does
   nothing elsewhere in the app right now.
-- Verified in the desktop browser preview: save/clear the key, persists
-  across reload, masked by default and revealed by Show, both segmented
-  toggles update and persist. Not yet tested on the actual tablet.
+- **Confirmed on the actual tablet**: key field, Show/Save/Clear, and
+  both segmented toggles all work and persist. Fahed noted the Dark mode
+  and Suggest/Quiet toggles don't visibly change anything — confirmed
+  that's expected (by design, as above), not a bug.
 
 ### What's still after that in Phase 1A
 
