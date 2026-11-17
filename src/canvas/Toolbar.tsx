@@ -15,6 +15,9 @@ interface Props {
   scratchOutEnabled: boolean
   onToggleScratchOut: () => void
   onToggleSymbolPalette: () => void
+  hasSelection: boolean
+  onDuplicateSelection: () => void
+  onDeleteSelection: () => void
 }
 
 const barStyle: React.CSSProperties = {
@@ -59,9 +62,13 @@ export default function Toolbar({
   scratchOutEnabled,
   onToggleScratchOut,
   onToggleSymbolPalette,
+  hasSelection,
+  onDuplicateSelection,
+  onDeleteSelection,
 }: Props) {
   const colors = tool === 'highlighter' ? HIGHLIGHTER_COLORS : PEN_COLORS
   const sizes = tool === 'highlighter' ? HIGHLIGHTER_SIZES : PEN_SIZES
+  const showDrawingControls = tool === 'pen' || tool === 'highlighter'
 
   return (
     <div style={barStyle}>
@@ -74,11 +81,28 @@ export default function Toolbar({
       <button style={toolButtonStyle(tool === 'eraser')} onClick={() => onToolChange('eraser')}>
         Eraser
       </button>
+      <button style={toolButtonStyle(tool === 'lasso')} onClick={() => onToolChange('lasso')}>
+        Lasso
+      </button>
       <button style={toolButtonStyle(false)} onClick={onToggleSymbolPalette} aria-label="Open symbol palette">
         Ω Symbols
       </button>
 
-      {tool !== 'eraser' && (
+      {tool === 'lasso' && hasSelection && (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button style={toolButtonStyle(false)} onClick={onDuplicateSelection}>
+            Duplicate
+          </button>
+          <button
+            style={{ ...toolButtonStyle(false), background: '#fde2e2', color: '#9b1c1c' }}
+            onClick={onDeleteSelection}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+
+      {showDrawingControls && (
         <div style={{ display: 'flex', gap: 6 }}>
           {colors.map((c) => (
             <button
@@ -98,7 +122,7 @@ export default function Toolbar({
         </div>
       )}
 
-      {tool !== 'eraser' && (
+      {showDrawingControls && (
         <div style={{ display: 'flex', gap: 6 }}>
           {sizes.map((sz) => (
             <button

@@ -4,11 +4,23 @@ import { getSvgPathFromStroke } from './strokeToPath'
 import { paintBackground, type PageViewBounds } from './background'
 import { PEN_COLORS, HIGHLIGHTER_COLORS, PEN_SIZES, HIGHLIGHTER_SIZES, HIGHLIGHTER_ALPHA, ERASER_SCREEN_RADIUS } from './colors'
 import { SYMBOL_PLACED_SIZE } from './symbols'
+import { strokeInPolygon, symbolInPolygon, selectionBounds, boundsContains, type Bounds } from './lasso'
 import Toolbar from './Toolbar'
 import SymbolPalette from './SymbolPalette'
-import { db, addStroke, deleteStroke, addSymbol, deleteSymbol, type PageBackground, type Stroke, type PlacedSymbol } from '../storage/db'
+import {
+  db,
+  addStroke,
+  deleteStroke,
+  updateStrokePoints,
+  addSymbol,
+  deleteSymbol,
+  updateSymbolPosition,
+  type PageBackground,
+  type Stroke,
+  type PlacedSymbol,
+} from '../storage/db'
 
-export type Tool = 'pen' | 'highlighter' | 'eraser'
+export type Tool = 'pen' | 'highlighter' | 'eraser' | 'lasso'
 
 const BG_COLOR = '#f4f4f5'
 
@@ -20,10 +32,21 @@ interface Transform {
   scale: number
 }
 
+interface Selection {
+  strokeIds: Set<string>
+  symbolIds: Set<string>
+}
+
 type UndoAction =
   | { type: 'add'; stroke: Stroke }
   | { type: 'erase'; stroke: Stroke }
   | { type: 'add-symbol'; symbol: PlacedSymbol }
+  | { type: 'erase-symbol'; symbol: PlacedSymbol }
+  | {
+      type: 'move'
+      strokes: { id: string; before: Stroke['points']; after: Stroke['points'] }[]
+      symbols: { id: string; before: { x: number; y: number }; after: { x: number; y: number } }[]
+    }
 
 function newId(): string {
   return crypto.randomUUID()
@@ -133,6 +156,10 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
   }, [strokes])
 
   const [symbols, setSymbols] = useState<PlacedSymbol[]>([])
+  const symbolsRef = useRef<PlacedSymbol[]>([])
+  useEffect(() => {
+    symbolsRef.current = symbols
+  }, [symbols])
   const [showSymbolPalette, setShowSymbolPalette] = useState(false)
 
   const [tool, setTool] = useState<Tool>('pen')
@@ -164,6 +191,28 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
   // Active touch pointers, for one-finger pan / two-finger pinch-zoom.
   const touchPoints = useRef<Map<number, { x: number; y: number }>>(new Map())
   const lastPinch = useRef<{ distance: number; midX: number; midY: number } | null>(null)
+
+  // Lasso select: `selection` is what's currently circled (cleared when the
+  // tool changes, or when a new lasso is drawn starting outside it).
+  // `lassoDraftRef` holds the in-progress lasso path while dragging — a ref,
+  // not state, since it's read on every pointermove without needing a
+  // re-render (only the live-canvas preview needs it, drawn imperatively).
+  // `movingRef` is set instead of drafting a new lasso when a drag starts
+  // *inside* the current selection's bounds: it remembers each selected
+  // stroke/symbol's position at drag-start so the move can be applied as a
+  // simple delta and still produce a clean before/after for undo.
+  const [selection, setSelection] = useState<Selection | null>(null)
+  const selectionRef = useRef<Selection | null>(null)
+  useEffect(() => {
+    selectionRef.current = selection
+  }, [selection])
+  const lassoDraftRef = useRef<[number, number][]>([])
+  const movingRef = useRef<{
+    startX: number
+    startY: number
+    strokes: Map<string, Stroke['points']>
+    symbols: Map<string, { x: number; y: number }>
+  } | null>(null)
 
   // Load this page's strokes and symbols once, and reset undo/redo for the
   // new page.
@@ -253,7 +302,27 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       ctx.fillStyle = sym.color
       ctx.fillText(sym.char, sym.x, sym.y)
     }
-  }, [applyContentTransform, background, getViewBounds, paintStroke, strokes, symbols])
+
+    if (selection) {
+      const selectedStrokes = strokes.filter((s) => selection.strokeIds.has(s.id))
+      const selectedSymbols = symbols.filter((s) => selection.symbolIds.has(s.id))
+      const bounds = selectionBounds(selectedStrokes, selectedSymbols)
+      if (bounds) {
+        const pad = 10
+        ctx.save()
+        ctx.strokeStyle = '#2563eb'
+        ctx.lineWidth = 1.5 / transformRef.current.scale
+        ctx.setLineDash([6 / transformRef.current.scale, 4 / transformRef.current.scale])
+        ctx.strokeRect(
+          bounds.minX - pad,
+          bounds.minY - pad,
+          bounds.maxX - bounds.minX + pad * 2,
+          bounds.maxY - bounds.minY + pad * 2,
+        )
+        ctx.restore()
+      }
+    }
+  }, [applyContentTransform, background, getViewBounds, paintStroke, selection, strokes, symbols])
 
   const redrawLive = useCallback(() => {
     const canvas = liveCanvasRef.current
@@ -264,6 +333,21 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight)
     applyContentTransform(ctx, dpr)
+    if (toolRef.current === 'lasso') {
+      const pts = lassoDraftRef.current
+      if (pts.length > 1) {
+        ctx.save()
+        ctx.strokeStyle = '#2563eb'
+        ctx.lineWidth = 1.5 / transformRef.current.scale
+        ctx.setLineDash([6 / transformRef.current.scale, 4 / transformRef.current.scale])
+        ctx.beginPath()
+        ctx.moveTo(pts[0][0], pts[0][1])
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1])
+        ctx.stroke()
+        ctx.restore()
+      }
+      return
+    }
     if (toolRef.current !== 'eraser') {
       paintStroke(ctx, currentPoints.current, activeColorRef.current, activeSizeRef.current, toolRef.current)
     }
@@ -391,6 +475,90 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     [],
   )
 
+  // Finishes a lasso drag: selects whatever strokes/symbols the drawn
+  // polygon caught, or clears the selection if it caught nothing.
+  const finishLassoSelection = useCallback(() => {
+    const polygon = lassoDraftRef.current
+    lassoDraftRef.current = []
+    if (polygon.length < 3) {
+      setSelection(null)
+      return
+    }
+    const strokeIds = new Set(strokesRef.current.filter((s) => strokeInPolygon(s, polygon)).map((s) => s.id))
+    const symbolIds = new Set(symbolsRef.current.filter((s) => symbolInPolygon(s, polygon)).map((s) => s.id))
+    setSelection(strokeIds.size > 0 || symbolIds.size > 0 ? { strokeIds, symbolIds } : null)
+  }, [])
+
+  // If a drag starts inside the current selection's bounds, it moves the
+  // selection instead of starting a new lasso. Returns whether it did.
+  const tryStartMove = useCallback((px: number, py: number): boolean => {
+    const sel = selectionRef.current
+    if (!sel) return false
+    const selectedStrokes = strokesRef.current.filter((s) => sel.strokeIds.has(s.id))
+    const selectedSymbols = symbolsRef.current.filter((s) => sel.symbolIds.has(s.id))
+    const bounds: Bounds | null = selectionBounds(selectedStrokes, selectedSymbols)
+    if (!bounds || !boundsContains(bounds, px, py)) return false
+
+    movingRef.current = {
+      startX: px,
+      startY: py,
+      strokes: new Map(selectedStrokes.map((s) => [s.id, s.points])),
+      symbols: new Map(selectedSymbols.map((s) => [s.id, { x: s.x, y: s.y }])),
+    }
+    return true
+  }, [])
+
+  const applyMoveDelta = useCallback((px: number, py: number) => {
+    const moving = movingRef.current
+    if (!moving) return
+    const dx = px - moving.startX
+    const dy = py - moving.startY
+
+    if (moving.strokes.size > 0) {
+      setStrokes((prev) =>
+        prev.map((s) => {
+          const original = moving.strokes.get(s.id)
+          return original ? { ...s, points: original.map(([x, y, p]): [number, number, number] => [x + dx, y + dy, p]) } : s
+        }),
+      )
+    }
+    if (moving.symbols.size > 0) {
+      setSymbols((prev) =>
+        prev.map((sym) => {
+          const original = moving.symbols.get(sym.id)
+          return original ? { ...sym, x: original.x + dx, y: original.y + dy } : sym
+        }),
+      )
+    }
+  }, [])
+
+  const commitMove = useCallback(
+    (px: number, py: number) => {
+      const moving = movingRef.current
+      movingRef.current = null
+      if (!moving) return
+      const dx = px - moving.startX
+      const dy = py - moving.startY
+      if (dx === 0 && dy === 0) return // tapped inside the selection without dragging: nothing to do
+
+      const strokeMoves: { id: string; before: Stroke['points']; after: Stroke['points'] }[] = []
+      for (const [id, before] of moving.strokes) {
+        const after: Stroke['points'] = before.map(([x, y, p]) => [x + dx, y + dy, p])
+        strokeMoves.push({ id, before, after })
+        updateStrokePoints(id, after)
+      }
+      const symbolMoves: { id: string; before: { x: number; y: number }; after: { x: number; y: number } }[] = []
+      for (const [id, before] of moving.symbols) {
+        const after = { x: before.x + dx, y: before.y + dy }
+        symbolMoves.push({ id, before, after })
+        updateSymbolPosition(id, after.x, after.y)
+      }
+      setUndoStack((prev) => [...prev, { type: 'move', strokes: strokeMoves, symbols: symbolMoves }])
+      setRedoStack([])
+    },
+    [],
+  )
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       if (e.pointerType === 'touch') {
@@ -404,7 +572,17 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       const [sx, sy] = toCanvasRelative(e)
       const [px, py] = screenToPage(sx, sy)
       isDrawing.current = true
-      e.currentTarget.setPointerCapture(e.pointerId)
+      // Best-effort: capture just keeps delivering events to this element
+      // if the pointer strays outside it mid-gesture. If it throws (some
+      // browsers refuse it for a pointer they don't consider "active" in
+      // certain states), drawing/lasso/erase still work via normal
+      // bubbling as long as the pointer stays over the canvas — so a
+      // failure here must never abort the rest of this handler.
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        // ignored — see above
+      }
 
       if (tool === 'eraser') {
         erasedThisDrag.current = new Set()
@@ -412,9 +590,16 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
         return
       }
 
+      if (tool === 'lasso') {
+        if (tryStartMove(px, py)) return
+        setSelection(null)
+        lassoDraftRef.current = [[px, py]]
+        return
+      }
+
       currentPoints.current = [[px, py, e.pressure || 0.5]]
     },
-    [eraseAt, screenToPage, tool, toCanvasRelative],
+    [eraseAt, screenToPage, tool, toCanvasRelative, tryStartMove],
   )
 
   const handlePointerMove = useCallback(
@@ -472,10 +657,20 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
         return
       }
 
+      if (tool === 'lasso') {
+        if (movingRef.current) {
+          applyMoveDelta(px, py)
+        } else {
+          lassoDraftRef.current.push([px, py])
+          redrawLive()
+        }
+        return
+      }
+
       currentPoints.current.push([px, py, e.pressure || 0.5])
       redrawLive()
     },
-    [eraseAt, redrawBase, redrawLive, screenToPage, tool, toCanvasRelative],
+    [applyMoveDelta, eraseAt, redrawBase, redrawLive, screenToPage, tool, toCanvasRelative],
   )
 
   const finishTouch = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -493,6 +688,18 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       isDrawing.current = false
 
       if (tool === 'eraser') return
+
+      if (tool === 'lasso') {
+        if (movingRef.current) {
+          const [sx, sy] = toCanvasRelative(e)
+          const [px, py] = screenToPage(sx, sy)
+          commitMove(px, py)
+        } else {
+          finishLassoSelection()
+          redrawLive()
+        }
+        return
+      }
 
       const points = currentPoints.current
       currentPoints.current = []
@@ -515,8 +722,8 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       const stroke: Stroke = {
         id: newId(),
         pageId,
-        // `tool` can't be 'eraser' here — the early `return` above already
-        // fired for that case.
+        // `tool` can't be 'eraser' or 'lasso' here — the early returns above
+        // already fired for those cases.
         tool: tool as 'pen' | 'highlighter',
         color: activeColor,
         size: activeSize,
@@ -528,7 +735,20 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       setRedoStack([])
       addStroke(stroke)
     },
-    [activeColor, activeSize, eraseAt, finishTouch, pageId, scratchOutEnabled, tool],
+    [
+      activeColor,
+      activeSize,
+      commitMove,
+      eraseAt,
+      finishLassoSelection,
+      finishTouch,
+      pageId,
+      redrawLive,
+      screenToPage,
+      scratchOutEnabled,
+      tool,
+      toCanvasRelative,
+    ],
   )
 
   // Side effects (persisting to Dexie, touching the *other* stack) must not
@@ -549,9 +769,19 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     } else if (action.type === 'erase') {
       setStrokes((s) => [...s, action.stroke])
       addStroke(action.stroke)
-    } else {
+    } else if (action.type === 'add-symbol') {
       setSymbols((s) => s.filter((sym) => sym.id !== action.symbol.id))
       deleteSymbol(action.symbol.id)
+    } else if (action.type === 'erase-symbol') {
+      setSymbols((s) => [...s, action.symbol])
+      addSymbol(action.symbol)
+    } else {
+      const beforeStrokes = new Map(action.strokes.map((m) => [m.id, m.before]))
+      const beforeSymbols = new Map(action.symbols.map((m) => [m.id, m.before]))
+      setStrokes((s) => s.map((st) => (beforeStrokes.has(st.id) ? { ...st, points: beforeStrokes.get(st.id)! } : st)))
+      setSymbols((s) => s.map((sym) => (beforeSymbols.has(sym.id) ? { ...sym, ...beforeSymbols.get(sym.id)! } : sym)))
+      for (const m of action.strokes) updateStrokePoints(m.id, m.before)
+      for (const m of action.symbols) updateSymbolPosition(m.id, m.before.x, m.before.y)
     }
   }, [undoStack])
 
@@ -566,11 +796,80 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     } else if (action.type === 'erase') {
       setStrokes((s) => s.filter((st) => st.id !== action.stroke.id))
       deleteStroke(action.stroke.id)
-    } else {
+    } else if (action.type === 'add-symbol') {
       setSymbols((s) => [...s, action.symbol])
       addSymbol(action.symbol)
+    } else if (action.type === 'erase-symbol') {
+      setSymbols((s) => s.filter((sym) => sym.id !== action.symbol.id))
+      deleteSymbol(action.symbol.id)
+    } else {
+      const afterStrokes = new Map(action.strokes.map((m) => [m.id, m.after]))
+      const afterSymbols = new Map(action.symbols.map((m) => [m.id, m.after]))
+      setStrokes((s) => s.map((st) => (afterStrokes.has(st.id) ? { ...st, points: afterStrokes.get(st.id)! } : st)))
+      setSymbols((s) => s.map((sym) => (afterSymbols.has(sym.id) ? { ...sym, ...afterSymbols.get(sym.id)! } : sym)))
+      for (const m of action.strokes) updateStrokePoints(m.id, m.after)
+      for (const m of action.symbols) updateSymbolPosition(m.id, m.after.x, m.after.y)
     }
   }, [redoStack])
+
+  const handleToolChange = useCallback((next: Tool) => {
+    setTool(next)
+    if (next !== 'lasso') setSelection(null)
+  }, [])
+
+  const handleDeleteSelection = useCallback(() => {
+    const sel = selection
+    if (!sel) return
+    const deletedStrokes = strokesRef.current.filter((s) => sel.strokeIds.has(s.id))
+    const deletedSymbols = symbolsRef.current.filter((s) => sel.symbolIds.has(s.id))
+    setStrokes((prev) => prev.filter((s) => !sel.strokeIds.has(s.id)))
+    setSymbols((prev) => prev.filter((s) => !sel.symbolIds.has(s.id)))
+    setUndoStack((prev) => [
+      ...prev,
+      ...deletedStrokes.map((stroke): UndoAction => ({ type: 'erase', stroke })),
+      ...deletedSymbols.map((symbol): UndoAction => ({ type: 'erase-symbol', symbol })),
+    ])
+    setRedoStack([])
+    for (const s of deletedStrokes) deleteStroke(s.id)
+    for (const s of deletedSymbols) deleteSymbol(s.id)
+    setSelection(null)
+  }, [selection])
+
+  // Nudges the copy so it's visibly separate from the original, then
+  // selects the copy — lets you immediately drag it into place.
+  const DUPLICATE_OFFSET = 24
+
+  const handleDuplicateSelection = useCallback(() => {
+    const sel = selection
+    if (!sel) return
+    const now = Date.now()
+
+    const newStrokes: Stroke[] = strokesRef.current
+      .filter((s) => sel.strokeIds.has(s.id))
+      .map((s) => ({
+        ...s,
+        id: newId(),
+        points: s.points.map(([x, y, p]): [number, number, number] => [x + DUPLICATE_OFFSET, y + DUPLICATE_OFFSET, p]),
+        createdAt: now,
+      }))
+    const newSymbols: PlacedSymbol[] = symbolsRef.current
+      .filter((s) => sel.symbolIds.has(s.id))
+      .map((s) => ({ ...s, id: newId(), x: s.x + DUPLICATE_OFFSET, y: s.y + DUPLICATE_OFFSET, createdAt: now }))
+
+    if (newStrokes.length === 0 && newSymbols.length === 0) return
+
+    setStrokes((prev) => [...prev, ...newStrokes])
+    setSymbols((prev) => [...prev, ...newSymbols])
+    setUndoStack((prev) => [
+      ...prev,
+      ...newStrokes.map((stroke): UndoAction => ({ type: 'add', stroke })),
+      ...newSymbols.map((symbol): UndoAction => ({ type: 'add-symbol', symbol })),
+    ])
+    setRedoStack([])
+    for (const s of newStrokes) addStroke(s)
+    for (const s of newSymbols) addSymbol(s)
+    setSelection({ strokeIds: new Set(newStrokes.map((s) => s.id)), symbolIds: new Set(newSymbols.map((s) => s.id)) })
+  }, [selection])
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
@@ -594,7 +893,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       />
       <Toolbar
         tool={tool}
-        onToolChange={setTool}
+        onToolChange={handleToolChange}
         color={activeColor}
         onColorChange={(c) => (tool === 'highlighter' ? setHighlighterColor(c) : setPenColor(c))}
         size={activeSize}
@@ -606,6 +905,9 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
         scratchOutEnabled={scratchOutEnabled}
         onToggleScratchOut={() => setScratchOutEnabled((v) => !v)}
         onToggleSymbolPalette={() => setShowSymbolPalette((v) => !v)}
+        hasSelection={selection !== null}
+        onDuplicateSelection={handleDuplicateSelection}
+        onDeleteSelection={handleDeleteSelection}
       />
       {showSymbolPalette && (
         <SymbolPalette onDragStart={handleSymbolDragStart} onClose={() => setShowSymbolPalette(false)} />

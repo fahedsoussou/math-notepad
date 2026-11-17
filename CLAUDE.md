@@ -170,8 +170,12 @@ that same tablet feedback. Step 4 (Settings screen: Gemini key,
 Suggest/Quiet, dark mode — all stored, none wired up to behaviour yet) is
 done and confirmed working on the actual tablet. Step 5 (library backup
 export/import, settings excluded on purpose) is also done and confirmed
-on the tablet as a full real round trip. Lasso select is the only piece
-of Phase 1A not started yet.
+on the tablet as a full real round trip. Step 6 (lasso select: circle to
+select, drag inside to move, Duplicate/Delete) is built and only
+partially verified — selecting works, but move/duplicate/delete/undo and
+symbol selection still need to be exercised (see its section below for
+exactly what to check) before this is tablet-tested or Phase 1A is
+considered done.
 
 ### Step 1 — Library: DONE ✅
 
@@ -506,11 +510,53 @@ does now:
   downloads to the device, the file picker finds it, import merges it
   back in cleanly — all work.
 
+### Step 6 — Lasso select: BUILT, PARTIALLY VERIFIED 🚧 (not yet tablet-tested)
+
+- New `'lasso'` tool. Drag to circle strokes/symbols (point-in-polygon
+  hit test in `src/canvas/lasso.ts` — a stroke counts as selected if any
+  one of its points is inside the drawn loop; a symbol if its anchor
+  point is). Selected items get a dashed blue bounding-box outline
+  (drawn in `redrawBase`, so it pans/zooms correctly with the page).
+- Dragging a new lasso **starting inside** the current selection's
+  bounds moves the whole selection instead of starting a fresh lasso —
+  implemented in `InkCanvas.tsx` (`tryStartMove`/`applyMoveDelta`/
+  `commitMove`). Move is live-previewed by directly updating `strokes`/
+  `symbols` state during the drag and persisted (`updateStrokePoints`/
+  `updateSymbolPosition`) on release, with full undo/redo support (new
+  `UndoAction` variants: `'erase-symbol'` and `'move'`).
+  "Duplicate" and "Delete" buttons appear in the Toolbar when the lasso
+  tool has an active selection (`Toolbar.tsx`); Duplicate offsets the
+  copy by 24 page-units and selects the copy so it can be dragged into
+  place immediately.
+- **Bug found and fixed while building this**: `e.currentTarget.
+  setPointerCapture(e.pointerId)` in `handlePointerDown` was called
+  unprotected — if it throws (which it reliably does for *any*
+  synthetic/non-trusted pointer event, discovered while testing this
+  feature), the exception aborted the entire handler, silently skipping
+  every tool's logic for that pointerdown (eraser, lasso, drawing — all
+  of it). Wrapped in try/catch; capture is best-effort anyway (events
+  still bubble normally if the pointer stays over the canvas). This was
+  a latent bug in the drawing code since Step 2, just never triggered
+  because real hardware pointers don't hit it — only found now because
+  lasso is the first gesture that *needed* reliable synthetic-event
+  testing (a closed loop can't be drawn via a single click-drag the way
+  every other tool so far could be tested).
+- **Verified**: drawing a lasso around a stroke correctly selects it
+  (dashed outline + Duplicate/Delete appear) — confirmed in the desktop
+  browser preview, including after the setPointerCapture fix.
+- **NOT yet verified**: move-by-dragging-inside-selection, Duplicate,
+  Delete, undo/redo of any of those, and symbol selection specifically
+  (only a stroke was tested) — testing was interrupted by hitting a
+  session usage limit mid-verification, not by a known failure. The code
+  path exists and builds cleanly, but treat it as unconfirmed until
+  actually exercised — on the tablet is fine, but go through all of:
+  select → drag to move → Undo → Redo → Duplicate → drag the duplicate
+  away → Delete → Undo before trusting this feature.
+
 ### What's still after that in Phase 1A
 
-- Lasso select (and, per the symbol-palette note above, probably symbol
-  move/delete alongside it). This is genuinely the last piece of
-  Phase 1A once it's done.
+- Nothing — lasso select (above) is the last unverified piece. Once it's
+  gone through the verification checklist above, Phase 1A is complete.
 
 ## What Phase 1 will need
 

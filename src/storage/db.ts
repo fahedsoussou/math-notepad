@@ -303,6 +303,10 @@ export async function deleteStrokes(ids: string[]): Promise<void> {
   await db.strokes.bulkDelete(ids)
 }
 
+export async function updateStrokePoints(id: string, points: Stroke['points']): Promise<void> {
+  await db.strokes.update(id, { points })
+}
+
 // ---- Symbols ----------------------------------------------------------
 
 export async function addSymbol(symbol: PlacedSymbol): Promise<void> {
@@ -311,6 +315,10 @@ export async function addSymbol(symbol: PlacedSymbol): Promise<void> {
 
 export async function deleteSymbol(id: string): Promise<void> {
   await db.symbols.delete(id)
+}
+
+export async function updateSymbolPosition(id: string, x: number, y: number): Promise<void> {
+  await db.symbols.update(id, { x, y })
 }
 
 // ---- Settings ----------------------------------------------------------
