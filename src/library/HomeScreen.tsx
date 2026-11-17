@@ -8,9 +8,10 @@ interface Props {
   onOpenFolder: (folderId: string) => void
   onOpenNotebook: (notebookId: string, folderId: string | null) => void
   onOpenTrash: () => void
+  onOpenSettings: () => void
 }
 
-export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash }: Props) {
+export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, onOpenSettings }: Props) {
   const [showNewFolder, setShowNewFolder] = useState(false)
 
   const folders = useLiveQuery(() => db.folders.filter((f) => f.deletedAt === null).sortBy('name'), [])
@@ -54,6 +55,9 @@ export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash }
     <div style={s.page}>
       <div style={s.header}>
         <div style={s.headerTitle}>Math Notepad</div>
+        <button style={s.iconButton} onClick={onOpenSettings}>
+          Settings
+        </button>
         <button style={s.iconButton} onClick={onOpenTrash}>
           Trash{trashCount ? ` (${trashCount})` : ''}
         </button>

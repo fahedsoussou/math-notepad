@@ -164,10 +164,12 @@ tried and **dropped**: confirmed on the tablet that Chrome doesn't expose
 that button through the Pointer Events API at all, so it was removed
 rather than fixed — see its section below before anyone considers
 retrying it. Step 3 (symbol palette: Greek letters + operators,
-press-and-drag to place) was tablet-tested, revised from a tap-to-center
-design to drag-and-drop based on that feedback, and verified in a desktop
-browser preview — not yet confirmed again on the tablet since the
-redesign. Lasso select, settings screen, and backup are not started yet.
+press-and-drag to place) is done and confirmed working on the actual
+tablet, after being revised from an initial tap-to-center design based on
+that same tablet feedback. Step 4 (Settings screen: Gemini key,
+Suggest/Quiet, dark mode — all stored, none wired up to behaviour yet) is
+built and verified in a desktop browser preview, not yet tablet-tested.
+Lasso select and backup are not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -434,16 +436,45 @@ does now:
   already placed (the Eraser tool and scratch-out both currently only
   affect strokes, not symbols) — likely bundled with lasso select later,
   since "select and move" is the same mechanism either way.
-- Verified in the desktop browser preview (placed, dragged, dropped,
-  landed exactly at the release point); not yet confirmed with the real
-  S Pen on the tablet.
+- **Confirmed on the actual tablet** with the real S Pen: drag feels
+  natural and the drop lands exactly where released.
+
+### Step 4 — Settings screen: DONE ✅ (built; not yet tablet-tested)
+
+- `src/storage/db.ts` v4: added a `settings` table holding a single row
+  keyed by the fixed id `SETTINGS_ID` (`'app'`). Additive only, same
+  pattern as v2/v3 — no migration needed; `getSettings()` returns
+  `DEFAULT_SETTINGS` if the row doesn't exist yet (first run), so there's
+  nothing to seed at startup. `AppSettings` is `{ id, geminiApiKey:
+  string | null, suggestMode: boolean, darkMode: boolean }`.
+  `updateSettings(patch)` reads-then-writes the merged row.
+- `src/library/SettingsScreen.tsx`, reachable via a new "Settings" button
+  on `HomeScreen`. Three sections: Gemini API key (password-masked input
+  with Show/Hide, Save, and a Clear button that only appears once a key
+  is set), Suggest/Quiet mode (segmented control), Dark mode (segmented
+  control). The key field uses a local draft buffer, committed on blur or
+  Save — not written to Dexie on every keystroke.
+- **Rule 1 compliance, explicitly**: the key is never logged, never
+  rendered in plaintext by default (password input + a separate Show
+  toggle), and the help text under the field says in plain language
+  where it is and isn't sent. Nothing here reads it except this screen;
+  Phase 1B's AI assist will be the first thing that ever sends it
+  anywhere, and that will go straight to Google's API, never through our
+  own servers (we have none).
+- Suggest/Quiet and dark mode are **stored only** — neither changes any
+  app behaviour yet, by design (Suggest/Quiet has nothing to gate until
+  the interaction-model triggers exist in Phase 1B+; dark mode has no
+  theme to switch into yet). The screen says this plainly in its own help
+  text so it's not confusing that flipping the toggle visibly does
+  nothing elsewhere in the app right now.
+- Verified in the desktop browser preview: save/clear the key, persists
+  across reload, masked by default and revealed by Show, both segmented
+  toggles update and persist. Not yet tested on the actual tablet.
 
 ### What's still after that in Phase 1A
 
-- Lasso select (and, per the note above, probably symbol move/delete
-  alongside it), Settings screen (Gemini key field, Suggest/Quiet
-  toggle, dark mode — stored but unused until Phase 1B), and
-  full-library backup export/import.
+- Lasso select (and, per the symbol-palette note above, probably symbol
+  move/delete alongside it), and full-library backup export/import.
 
 ## What Phase 1 will need
 

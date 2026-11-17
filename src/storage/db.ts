@@ -71,12 +71,37 @@ export interface PlacedSymbol {
   createdAt: number
 }
 
+/**
+ * App-wide settings — a single row, keyed by the fixed id `SETTINGS_ID`.
+ * Stored only on this device, in IndexedDB like everything else here.
+ * `geminiApiKey` in particular must never leave this table: never logged,
+ * never included in a future library backup export, never sent anywhere
+ * except directly to Google's API when the user triggers an AI request
+ * (Phase 1B) — see CLAUDE.md Rule 1.
+ */
+export interface AppSettings {
+  id: typeof SETTINGS_ID
+  geminiApiKey: string | null
+  suggestMode: boolean
+  darkMode: boolean
+}
+
+export const SETTINGS_ID = 'app' as const
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  id: SETTINGS_ID,
+  geminiApiKey: null,
+  suggestMode: true,
+  darkMode: false,
+}
+
 class MathNotepadDB extends Dexie {
   folders!: EntityTable<Folder, 'id'>
   notebooks!: EntityTable<Notebook, 'id'>
   pages!: EntityTable<Page, 'id'>
   strokes!: EntityTable<Stroke, 'id'>
   symbols!: EntityTable<PlacedSymbol, 'id'>
+  settings!: EntityTable<AppSettings, 'id'>
 
   constructor() {
     super('math-notepad')
@@ -95,6 +120,12 @@ class MathNotepadDB extends Dexie {
     // Additive only, same as v2 — no migration needed.
     this.version(3).stores({
       symbols: 'id, pageId, createdAt',
+    })
+    // v4 adds the single app-settings row. Additive only — no migration
+    // needed; the row is created on first read if missing (see
+    // getSettings below), not seeded here.
+    this.version(4).stores({
+      settings: 'id',
     })
   }
 }
@@ -280,6 +311,18 @@ export async function addSymbol(symbol: PlacedSymbol): Promise<void> {
 
 export async function deleteSymbol(id: string): Promise<void> {
   await db.symbols.delete(id)
+}
+
+// ---- Settings ----------------------------------------------------------
+
+export async function getSettings(): Promise<AppSettings> {
+  const existing = await db.settings.get(SETTINGS_ID)
+  return existing ?? DEFAULT_SETTINGS
+}
+
+export async function updateSettings(patch: Partial<Omit<AppSettings, 'id'>>): Promise<void> {
+  const current = await getSettings()
+  await db.settings.put({ ...current, ...patch })
 }
 
 // ---- Trash (cross-type) ----------------------------------------------------------

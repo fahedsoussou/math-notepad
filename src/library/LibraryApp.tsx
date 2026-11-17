@@ -4,6 +4,7 @@ import FolderScreen from './FolderScreen'
 import NotebookScreen from './NotebookScreen'
 import TrashScreen from './TrashScreen'
 import PageScreen from './PageScreen'
+import SettingsScreen from './SettingsScreen'
 
 type Route =
   | { screen: 'home' }
@@ -11,6 +12,7 @@ type Route =
   | { screen: 'notebook'; notebookId: string; folderId: string | null }
   | { screen: 'trash' }
   | { screen: 'page'; pageId: string; notebookId: string; folderId: string | null }
+  | { screen: 'settings' }
 
 /**
  * Top-level library navigation. No router library: the app's navigation is
@@ -27,6 +29,7 @@ export default function LibraryApp() {
           onOpenFolder={(folderId) => setRoute({ screen: 'folder', folderId })}
           onOpenNotebook={(notebookId, folderId) => setRoute({ screen: 'notebook', notebookId, folderId })}
           onOpenTrash={() => setRoute({ screen: 'trash' })}
+          onOpenSettings={() => setRoute({ screen: 'settings' })}
         />
       )
     case 'folder':
@@ -51,6 +54,8 @@ export default function LibraryApp() {
       )
     case 'trash':
       return <TrashScreen onBack={() => setRoute({ screen: 'home' })} />
+    case 'settings':
+      return <SettingsScreen onBack={() => setRoute({ screen: 'home' })} />
     case 'page':
       return (
         <PageScreen
