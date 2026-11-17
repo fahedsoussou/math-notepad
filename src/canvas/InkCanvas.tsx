@@ -149,26 +149,9 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
   // gestureOverlapsAnyStroke), which rules out most false positives.
   const [scratchOutEnabled, setScratchOutEnabled] = useState(false)
 
-  // TEMPORARY diagnostic for the S Pen side-button feature: shows the raw
-  // pointerType/buttons/button values live, so we can see what this
-  // specific tablet's Chrome actually reports when the button is pressed.
-  // Remove this once that's confirmed and the detection logic is fixed.
-  const [pointerDebug, setPointerDebug] = useState('no pen/mouse event yet')
-  const lastPointerDebug = useRef('')
-  const reportPointerDebug = useCallback((text: string) => {
-    if (text === lastPointerDebug.current) return // avoid a re-render per move event when nothing changed
-    lastPointerDebug.current = text
-    setPointerDebug(text)
-  }, [])
-
   const isDrawing = useRef(false)
   const currentPoints = useRef<PagePoint[]>([])
   const erasedThisDrag = useRef<Set<string>>(new Set())
-  // The tool actually in effect for the gesture currently in progress —
-  // normally just `tool`, but overridden to 'eraser' for the duration of a
-  // stroke drawn while the S Pen's side (barrel) button is held, without
-  // touching the persisted `tool` state or the Toolbar's selection.
-  const gestureToolRef = useRef<Tool>('pen')
 
   // Active touch pointers, for one-finger pan / two-finger pinch-zoom.
   const touchPoints = useRef<Map<number, { x: number; y: number }>>(new Map())
@@ -329,16 +312,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       isDrawing.current = true
       e.currentTarget.setPointerCapture(e.pointerId)
 
-      reportPointerDebug(`down: type=${e.pointerType} buttons=${e.buttons} button=${e.button}`)
-
-      // S Pen side (barrel) button held while touching the screen. Checking
-      // for *any* extra bit beyond the tip (buttons > 1) rather than one
-      // specific bit, since which bit this tablet's Chrome actually uses is
-      // still being confirmed via the on-screen debug readout above.
-      const barrelButtonDown = e.pointerType === 'pen' && e.buttons > 1
-      gestureToolRef.current = barrelButtonDown ? 'eraser' : tool
-
-      if (gestureToolRef.current === 'eraser') {
+      if (tool === 'eraser') {
         erasedThisDrag.current = new Set()
         eraseAt(px, py)
         return
@@ -346,7 +320,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
 
       currentPoints.current = [[px, py, e.pressure || 0.5]]
     },
-    [eraseAt, reportPointerDebug, screenToPage, tool, toCanvasRelative],
+    [eraseAt, screenToPage, tool, toCanvasRelative],
   )
 
   const handlePointerMove = useCallback(
@@ -399,9 +373,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       const [sx, sy] = toCanvasRelative(e)
       const [px, py] = screenToPage(sx, sy)
 
-      reportPointerDebug(`move: type=${e.pointerType} buttons=${e.buttons} button=${e.button}`)
-
-      if (gestureToolRef.current === 'eraser') {
+      if (tool === 'eraser') {
         eraseAt(px, py)
         return
       }
@@ -409,7 +381,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       currentPoints.current.push([px, py, e.pressure || 0.5])
       redrawLive()
     },
-    [eraseAt, redrawBase, redrawLive, reportPointerDebug, screenToPage, toCanvasRelative],
+    [eraseAt, redrawBase, redrawLive, screenToPage, tool, toCanvasRelative],
   )
 
   const finishTouch = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -426,7 +398,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       if (!isDrawing.current) return
       isDrawing.current = false
 
-      if (gestureToolRef.current === 'eraser') return
+      if (tool === 'eraser') return
 
       const points = currentPoints.current
       currentPoints.current = []
@@ -449,10 +421,8 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
       const stroke: Stroke = {
         id: newId(),
         pageId,
-        // Invariant: `tool` can't be 'eraser' here — if it were,
-        // gestureToolRef.current would be 'eraser' too (it only overrides
-        // to 'eraser' on top of `tool`, never away from it) and the early
-        // `return` above would already have fired.
+        // `tool` can't be 'eraser' here — the early `return` above already
+        // fired for that case.
         tool: tool as 'pen' | 'highlighter',
         color: activeColor,
         size: activeSize,
@@ -536,24 +506,6 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
         scratchOutEnabled={scratchOutEnabled}
         onToggleScratchOut={() => setScratchOutEnabled((v) => !v)}
       />
-      {/* TEMPORARY diagnostic — see the note by `pointerDebug` above. */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 10,
-          left: 10,
-          background: 'rgba(0,0,0,0.75)',
-          color: 'white',
-          padding: '6px 10px',
-          borderRadius: 8,
-          fontFamily: 'monospace',
-          fontSize: 13,
-          pointerEvents: 'none',
-          zIndex: 5,
-        }}
-      >
-        {pointerDebug}
-      </div>
     </div>
   )
 }

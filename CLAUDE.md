@@ -160,12 +160,11 @@ and 2c (page background picker) are all done and confirmed working on the
 actual tablet. Step 2d (scratch-out gesture) was tablet-tested, found to
 misfire on cursive, and reworked to be an opt-in toggle that only erases
 ink it actually overlaps — needs a second tablet pass to confirm the fix.
-Step 2e (S Pen side button = temporary eraser) is **in progress**:
-tablet-tested and it doesn't work yet, so there's now a temporary
-on-screen debug readout to find out what the button actually reports
-(see its section below — remove the readout once this is fixed). Lasso
-select, the symbol palette, settings screen, and backup are not started
-yet.
+Step 2e (S Pen side button = temporary eraser) was tried and **dropped**:
+confirmed on the tablet that Chrome doesn't expose that button through
+the Pointer Events API at all, so it was removed rather than fixed — see
+its section below before anyone considers retrying it. Lasso select, the
+symbol palette, settings screen, and backup are not started yet.
 
 ### Step 1 — Library: DONE ✅
 
@@ -366,46 +365,31 @@ always on. **Tablet-tested: cursive handwriting triggered it constantly**
   tune the 2.5×/3-reversal numbers rather than redesigning the approach —
   don't re-enable it being on by default.
 
-### Step 2e — S Pen side button as a temporary eraser: IN PROGRESS 🚧
-(tablet-tested: **didn't work** — the button doesn't erase. Now has a
-temporary on-screen diagnostic readout to find out why.)
+### Step 2e — S Pen side button as a temporary eraser: DROPPED ❌
 
-- In `InkCanvas.tsx`'s `handlePointerDown`, a `pointerType === 'pen'`
-  event where `buttons > 1` (anything beyond the tip-contact bit) is
-  treated as "eraser for this one stroke only" — via `gestureToolRef`, a
-  ref that holds the tool actually in effect for the gesture in progress.
-  It defaults to whatever `tool` the Toolbar has selected, but is
-  overridden to `'eraser'` for a barrel-button stroke without changing
-  the Toolbar's own selection or the persisted `tool` state — release the
-  button and the very next stroke draws normally again, no explicit
-  "switch back". `handlePointerMove`/`handlePointerUp` and the
-  live-stroke preview all check `gestureToolRef.current`, not `tool`,
-  during an active gesture. (Originally checked specifically for bit 2 or
-  bit 32; widened to "anything beyond 1" since we don't yet know which
-  bit, if any, this tablet actually sets — see below.)
-- **Could not be tested at all from a desktop browser**: simulating a
-  pointerdown with `pointerType: 'pen'` and a fabricated `buttons` value
-  via `dispatchEvent` hits `element.setPointerCapture()` throwing
-  `NotFoundError` ("No active pointer with the given id"), because a
-  synthetic event has no real OS-level pointer session to capture —
-  browsers only let you capture a pointer that's genuinely active. Mouse
-  clicks/drags work around this by reusing the browser's one persistent
-  real pointer (id 1), which is why every other canvas feature so far
-  could be verified this way and this one couldn't.
-- **Tablet-tested and it doesn't erase.** Rather than keep guessing at
-  which bit Samsung's Chrome uses (or whether it reports anything at all
-  for this gesture), `InkCanvas.tsx` now has a **temporary** diagnostic:
-  a small on-screen readout (bottom-left of the canvas, search the file
-  for "TEMPORARY diagnostic") showing the live `pointerType` / `buttons`
-  / `button` from the last pointerdown or pointermove. Next step: have
-  Fahed touch the pen to the page, hold the side button, and read out
-  what the overlay shows (both on touch-down and while holding it mid-
-  stroke, in case it only updates via `pointermove` rather than a fresh
-  `pointerdown`). Then either fix the bit check to match reality, or — if
-  `buttons` never changes at all when the button is pressed — conclude
-  this specific gesture isn't observable through the Pointer Events API
-  on this tablet's Chrome build and drop the feature. **Remove the debug
-  readout once this is resolved either way**, it's not meant to ship.
+Tried, tablet-tested, confirmed impossible on this device — removed.
+
+- Implemented via `handlePointerDown` checking `pointerType === 'pen'`
+  with `buttons > 1`, meant to erase for the duration of one stroke
+  without changing the Toolbar's selected tool.
+- Added a temporary on-screen debug readout showing the live
+  `pointerType`/`buttons`/`button` from each pointer event, since the
+  feature didn't work and a desktop browser can't simulate a real S Pen
+  button press (synthetic `dispatchEvent` pointerdowns fail at
+  `setPointerCapture` — see git history on this file around
+  2026-11-17 if the detail is ever needed again).
+- **Confirmed on the actual tablet: the debug readout never changes when
+  the side button is pressed**, down or mid-stroke. Chrome on this
+  tablet does not expose the S Pen's side button through the Pointer
+  Events API at all — there's no signal for any code to react to, so this
+  isn't a bug to fix, it's a platform limitation. Both the detection code
+  and the debug readout have been removed; `handlePointerDown`/`Move`/`Up`
+  are back to checking the Toolbar's `tool` state directly, same as
+  before Step 2e.
+- **Don't retry this approach.** If a hardware-button eraser shortcut is
+  wanted later, it would need a different mechanism than Pointer Events
+  `buttons` on this tablet — not worth more time without a genuinely new
+  idea for how to detect it.
 
 ### What's still after that in Phase 1A
 
