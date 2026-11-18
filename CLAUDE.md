@@ -969,7 +969,7 @@ flagged as a risk back in Step 2 ("if palm strokes still leak through…").
   inconsistent between Home and those screens until they get the same
   pass.
 
-## Autonomous session, 2026-11-18 — Phase 1 math engine built (DONE, tablet untested)
+## Autonomous session, 2026-11-18 — math engine through Phase 6 (DONE, tablet untested)
 
 Fahed asked for an autonomous session through Phases 3→4→5→6→2→7, working
 without feedback since he was unavailable. **Full detail, bug-by-bug, is in
@@ -979,7 +979,15 @@ summary.** `TABLET-TESTS.md` has what to test when back on the tablet.
 Short version: Phases 3–6 all need a working math engine, which didn't
 exist yet (only Phase 1A's library/canvas did) — so Phase 1 (recognition
 placeholder + SymPy/Pyodide math engine) was built first, as a technical
-necessity, not a detour from the instruction.
+necessity, not a detour from the instruction. By the end of the session,
+the engine covered Solve/Differentiate/Integrate/Simplify/Plot (Phase 1 +
+started Phase 4), electrical mode's impedance + unit conversion (Phase 5),
+and series/statistics/matrices/ODEs/Laplace transforms (Phase 6) — all 11
+with real, verified-step UI in a new "Math" panel, and 86 Vitest tests
+(real Pyodide+SymPy under Node, not mocked) passing. PDF import/export
+(Phase 4's other half), "Check my work" mode, deeper Phase 3 step
+coverage, Phase 2 offline recognition, and Phase 7 polish are still open
+— see `PROGRESS.md`'s "next up" list, in the order to tackle them.
 
 - `src/math-engine/` (new): `pythonSource.ts` (SymPy logic, shared
   verbatim between the browser Worker and the Vitest test bank),
