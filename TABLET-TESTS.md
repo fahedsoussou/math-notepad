@@ -66,6 +66,21 @@ to report — write down which line it was.
     `2*x = 6`), tap Check my work again.
     - **Expect**: that line turns red ("doesn't follow — check this").
 
+## PDF/PNG export (new)
+
+18. Write something on a page. Open the "⋮" overflow menu (top right of
+    the drawing toolbar) → **Export page as PDF**.
+    - **Expect**: a PDF file downloads. Open it (in any PDF viewer) and
+      confirm your writing shows up, in the right shape.
+19. Same page → **Export page as PNG**.
+    - **Expect**: a PNG image downloads, matching what's on screen.
+20. Go to a notebook's page list → tap **Export PDF** in the header.
+    - **Expect**: one PDF downloads with every page in the notebook, in
+      order, each as its own page in the file.
+21. Note: the exported PDF does **not** include the page's background
+    lines/grid/paper colour yet (only your writing) — that's expected
+    for now, not a bug. The PNG export does include the background.
+
 ## Writing feel (from earlier this session — re-check if you haven't yet)
 
 8. Write a few normal words with your hand resting on the screen the way

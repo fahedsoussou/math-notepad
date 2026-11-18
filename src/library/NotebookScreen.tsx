@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, createPage, renamePage, trashPage, duplicatePage, touchNotebookOpened } from '../storage/db'
+import { exportNotebookPDF } from '../canvas/pdfExport'
 import * as s from './styles'
 import { useEntity } from './useEntity'
 
@@ -59,11 +60,20 @@ export default function NotebookScreen({ notebookId, onBack, onOpenPage }: Props
     await trashPage(id)
   }
 
+  const handleExportNotebook = async () => {
+    try {
+      await exportNotebookPDF(notebookId)
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Could not export this notebook as a PDF.')
+    }
+  }
+
   return (
     <div style={s.page}>
       <div style={s.header}>
         <button style={s.iconButton} onClick={onBack}>← Back</button>
         <div style={s.headerTitle}>{notebook.name}</div>
+        <button style={s.iconButton} onClick={handleExportNotebook}>Export PDF</button>
         <button style={s.primaryButton} onClick={handleNewPage}>+ Page</button>
       </div>
 

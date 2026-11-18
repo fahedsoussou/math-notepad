@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getStroke } from 'perfect-freehand'
-import { getSvgPathFromStroke } from './strokeToPath'
 import { paintBackground, getPaperAppearance, type PageViewBounds } from './background'
+import { strokeOutline, type PagePoint } from './strokeGeometry'
 import {
   PEN_COLORS,
   HIGHLIGHTER_COLORS,
@@ -10,7 +9,6 @@ import {
   HIGHLIGHTER_ALPHA,
   ERASER_SCREEN_RADIUS,
   PEN_TYPES,
-  PEN_TYPE_OPTIONS,
 } from './colors'
 import { SYMBOL_PLACED_SIZE } from './symbols'
 import { strokeInPolygon, symbolInPolygon, selectionBounds, boundsContains, type Bounds } from './lasso'
@@ -33,45 +31,6 @@ import {
 } from '../storage/db'
 
 export type Tool = 'pen' | 'highlighter' | 'eraser' | 'lasso'
-
-
-type PagePoint = [number, number, number] // x, y, pressure — all in page-space
-
-/** Chisel-nib feel: width (via synthetic pressure) depends on stroke
- * direction relative to a fixed nib angle, like a real calligraphy pen. */
-function applyCalligraphyAngle(points: PagePoint[]): PagePoint[] {
-  const NIB_ANGLE = Math.PI / 4
-  return points.map(([x, y, pressure], i) => {
-    const prev = points[Math.max(0, i - 1)]
-    const next = points[Math.min(points.length - 1, i + 1)]
-    const angle = Math.atan2(next[1] - prev[1], next[0] - prev[0])
-    // Wide contrast, almost down to a hairline on the nib's own axis — a
-    // real chisel tip nearly disappears when drawn edge-on.
-    const factor = 0.12 + 0.88 * Math.abs(Math.sin(angle - NIB_ANGLE))
-    return [x, y, pressure * factor]
-  })
-}
-
-/** Nudges each point slightly sideways off the stroke's own direction, by a
- * deterministic pseudo-random amount (same input points always jitter the
- * same way, so repeated repaints of a committed stroke don't visibly
- * wobble) — a real pencil line is never perfectly smooth the way
- * perfect-freehand's curve fit otherwise makes it look. */
-function applyPencilJitter(points: PagePoint[], size: number): PagePoint[] {
-  const amplitude = size * 0.08
-  return points.map(([x, y, pressure], i) => {
-    const prev = points[Math.max(0, i - 1)]
-    const next = points[Math.min(points.length - 1, i + 1)]
-    const dx = next[0] - prev[0]
-    const dy = next[1] - prev[1]
-    const len = Math.hypot(dx, dy) || 1
-    const nx = -dy / len
-    const ny = dx / len
-    const n = Math.sin(i * 12.9898) * 43758.5453
-    const jitter = (n - Math.floor(n) - 0.5) * 2 * amplitude
-    return [x + nx * jitter, y + ny * jitter, pressure]
-  })
-}
 
 // Built once, lazily, and reused for every pencil stroke.
 let pencilTextureCanvas: HTMLCanvasElement | null = null
@@ -248,6 +207,8 @@ export default function InkCanvas({
   onDuplicatePage,
   onInsertPageAfter,
   onDeletePage,
+  onExportPagePDF,
+  onExportPagePNG,
 }: {
   pageId: string
   background: PageBackground
@@ -261,6 +222,8 @@ export default function InkCanvas({
   onDuplicatePage: () => void
   onInsertPageAfter: () => void
   onDeletePage: () => void
+  onExportPagePDF: () => void
+  onExportPagePNG: () => void
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -385,37 +348,16 @@ export default function InkCanvas({
       strokeTool: Tool,
       strokePenType?: PenType,
     ) => {
-      if (points.length === 0) return
-      const isPen = strokeTool === 'pen'
-      const penOptions = PEN_TYPE_OPTIONS[strokePenType ?? PEN_TYPES[0]]
-      const inputPoints =
-        isPen && strokePenType === 'calligraphy'
-          ? applyCalligraphyAngle(points)
-          : isPen && strokePenType === 'pencil'
-            ? applyPencilJitter(points, size)
-            : points
-      const taper = !isPen || penOptions.taper
-      const stroke = getStroke(inputPoints, {
-        size,
-        thinning: isPen ? penOptions.thinning : 0.6,
-        smoothing: isPen ? penOptions.smoothing : 0.5,
-        streamline: isPen ? penOptions.streamline : 0.5,
-        simulatePressure: false,
-        // A real ballpoint/marker/calligraphy nib stops at its full width;
-        // only fountain/pencil (and highlighter/eraser, unaffected by pen
-        // type) fade to a point the way the app always did.
-        start: { taper, cap: true },
-        end: { taper, cap: true },
-      })
-      const path = getSvgPathFromStroke(stroke)
-      const svgPath = new Path2D(path)
+      const outline = strokeOutline(points, size, strokeTool, strokePenType, HIGHLIGHTER_ALPHA)
+      if (!outline) return
+      const svgPath = new Path2D(outline.path)
       const previousAlpha = ctx.globalAlpha
-      ctx.globalAlpha = strokeTool === 'highlighter' ? HIGHLIGHTER_ALPHA : isPen ? penOptions.alpha : 1
+      ctx.globalAlpha = outline.alpha
       ctx.fillStyle = color
       ctx.fill(svgPath)
       ctx.globalAlpha = previousAlpha
 
-      if (isPen && strokePenType === 'pencil') {
+      if (strokeTool === 'pen' && strokePenType === 'pencil') {
         paintPencilTexture(ctx, svgPath, points, size)
       }
     },
@@ -1103,6 +1045,8 @@ export default function InkCanvas({
         onDuplicatePage={onDuplicatePage}
         onInsertPageAfter={onInsertPageAfter}
         onDeletePage={onDeletePage}
+        onExportPagePDF={onExportPagePDF}
+        onExportPagePNG={onExportPagePNG}
       />
       {showSymbolPalette && (
         <SymbolPalette onDragStart={handleSymbolDragStart} onClose={() => setShowSymbolPalette(false)} />

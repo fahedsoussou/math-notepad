@@ -61,6 +61,8 @@ interface Props {
   onDuplicatePage: () => void
   onInsertPageAfter: () => void
   onDeletePage: () => void
+  onExportPagePDF: () => void
+  onExportPagePNG: () => void
 }
 
 const barStyle: React.CSSProperties = {
@@ -131,6 +133,8 @@ export default function Toolbar({
   onDuplicatePage,
   onInsertPageAfter,
   onDeletePage,
+  onExportPagePDF,
+  onExportPagePNG,
 }: Props) {
   const [showMenu, setShowMenu] = useState(false)
   const colors = tool === 'highlighter' ? HIGHLIGHTER_COLORS : PEN_COLORS
@@ -335,6 +339,24 @@ export default function Toolbar({
                 }}
               >
                 Delete page
+              </button>
+              <button
+                style={menuItemStyle}
+                onClick={() => {
+                  setShowMenu(false)
+                  onExportPagePDF()
+                }}
+              >
+                Export page as PDF
+              </button>
+              <button
+                style={menuItemStyle}
+                onClick={() => {
+                  setShowMenu(false)
+                  onExportPagePNG()
+                }}
+              >
+                Export page as PNG
               </button>
             </div>
           )}

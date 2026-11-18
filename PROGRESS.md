@@ -324,10 +324,66 @@ before it and flags the first one that isn't mathematically consistent.
   really comparing consecutive lines, not just the final answer against
   some expected value.
 
+## Phase 4: PDF/PNG export — DONE, tested, working end-to-end
+
+Resumed after Fahed hit a usage limit and asked to continue. Built PDF
+export first (export has no architectural impact on the already-stable
+ink canvas; import does — see "next up" below for why that's separate).
+
+- **Refactor first, to avoid duplicating stroke rendering**: extracted
+  `applyCalligraphyAngle`, `applyPencilJitter`, and a new
+  `strokeOutline()` (the full getStroke-with-pen-type-options pipeline)
+  out of `InkCanvas.tsx` into a new `src/canvas/strokeGeometry.ts`, with
+  no DOM dependency — it's pure geometry. Both the on-screen canvas
+  renderer and the new PDF/PNG exporter now call the exact same function,
+  so an export can never silently drift from what's actually on screen.
+  Verified no regression: rebuilt, re-ran the full test suite, and drew a
+  fresh stroke in the browser preview to confirm identical rendering.
+  Also added `tests/strokeGeometry.test.ts` (6 tests, pure functions, no
+  DOM/Dexie needed) — genuinely new coverage, not just a refactor safety
+  net. 98 tests total now.
+- New `src/canvas/pdfExport.ts`:
+  - `exportPagePDF(pageId)` / `exportNotebookPDF(notebookId)`: real
+    **vector** PDF via `pdf-lib`'s `drawSvgPath`, fed the exact same
+    outline string `strokeOutline()` produces — not a rasterised
+    screenshot. Page size fits the content (padded) or defaults to US
+    Letter if empty, since our pages have no fixed size the way a
+    physical sheet does.
+  - **Scope limits, both deliberate, both documented in the file**: (1)
+    the exported PDF includes ink + symbols only, not the page's
+    background pattern/paper colour — adding that is more work than
+    export needed for a first useful version. (2) Greek-letter/math-
+    operator symbols are skipped per-symbol (caught, not fatal) when
+    exporting text, because pdf-lib's built-in fonts only cover
+    WinAnsiEncoding (Latin-ish) — rendering those correctly needs an
+    embedded Unicode font, not done yet.
+  - `exportPagePNG(pageId)`: renders through a real `<canvas>` (unlike
+    the PDF path), so — unlike PDF export — it DOES include the
+    background pattern and paper colour, since a PNG is a bitmap either
+    way and there's no vector-fidelity reason to leave it out there.
+- UI: `Toolbar.tsx`'s "⋮" overflow menu gained "Export page as PDF" /
+  "Export page as PNG"; `NotebookScreen.tsx`'s header gained an "Export
+  PDF" button for the whole notebook (all pages, in order, one PDF).
+- **Verified live in the browser — not just "no error thrown"**: drew a
+  stroke, exported the notebook as PDF, captured the actual blob (by
+  temporarily intercepting `URL.createObjectURL`/`<a>.click()` rather
+  than letting the real download fire), confirmed it's a valid
+  `%PDF-1.7` file, then **rendered it back through pdf.js** into a
+  canvas and screenshotted it — the rendered PDF page showed the exact
+  same tapered stroke shape as the original. Did the same for PNG export
+  (valid `image/png` blob, rendered `<img>` showed the matching stroke).
+  This is a real round-trip check, not a size/type sniff.
+- **Not yet tablet-tested.**
+
 ## In progress / next up, in order
 
-1. Phase 4: PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused
-   yet).
+1. Phase 4: PDF **import** (pdf.js, installed, unused) — PDF **export**
+   is done, see below. Import is the architecturally bigger half: it
+   needs to render an existing PDF page as a background layer under the
+   ink in `InkCanvas.tsx` (a new rendering path, not the existing
+   pattern system), plus a new Dexie table to hold the source PDF bytes
+   per notebook. Deliberately not rushed in the same pass as export,
+   since it touches the already-stable, heavily-tested ink canvas.
 2. Phase 3 step-by-step: the engine already produces steps for solve/
    diff/integrate/series/etc.; this phase is mostly about *more* step
    coverage (more integration techniques — substitution, by parts — more

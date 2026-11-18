@@ -12,6 +12,7 @@ import {
 } from '../storage/db'
 import InkCanvas from '../canvas/InkCanvas'
 import { PAPER_COLORS } from '../canvas/background'
+import { exportPagePDF, exportPagePNG } from '../canvas/pdfExport'
 import * as s from './styles'
 import { useEntity } from './useEntity'
 import MathPanel from '../math-engine/MathPanel'
@@ -68,6 +69,20 @@ export default function PageScreen({ pageId, notebookId, onBack, onNavigatePage 
     if (!window.confirm('Move this page to Trash?')) return
     await trashPage(pageId)
     onBack()
+  }
+  const handleExportPagePDF = async () => {
+    try {
+      await exportPagePDF(pageId)
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Could not export this page as a PDF.')
+    }
+  }
+  const handleExportPagePNG = async () => {
+    try {
+      await exportPagePNG(pageId)
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Could not export this page as a PNG.')
+    }
   }
 
   if (page === undefined) return null // still loading
@@ -171,6 +186,8 @@ export default function PageScreen({ pageId, notebookId, onBack, onNavigatePage 
           onDuplicatePage={handleDuplicatePage}
           onInsertPageAfter={handleInsertPageAfter}
           onDeletePage={handleDeletePage}
+          onExportPagePDF={handleExportPagePDF}
+          onExportPagePNG={handleExportPagePNG}
         />
       </div>
       {showMathPanel && <MathPanel onClose={() => setShowMathPanel(false)} />}
