@@ -15,6 +15,7 @@ const BACKGROUND_LABELS: Record<PageBackground, string> = {
   lined: 'Lined',
   grid: 'Grid',
   dotted: 'Dotted',
+  cornell: 'Cornell',
 }
 
 const PAPER_COLOR_LABELS: Record<PaperColor, string> = {
@@ -43,6 +44,8 @@ export default function PageScreen({ pageId, onBack }: Props) {
 
   const background = page.background ?? 'blank'
   const paperColor = page.paperColor ?? 'white'
+  const lineSpacing = page.lineSpacing ?? 'medium'
+  const marginLine = page.marginLine ?? false
 
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#f4f6f9', color: '#1e1e2e' }}>
@@ -113,7 +116,13 @@ export default function PageScreen({ pageId, onBack }: Props) {
         </div>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
-        <InkCanvas pageId={pageId} background={background} paperColor={paperColor} />
+        <InkCanvas
+          pageId={pageId}
+          background={background}
+          paperColor={paperColor}
+          lineSpacing={lineSpacing}
+          marginLine={marginLine}
+        />
       </div>
     </div>
   )

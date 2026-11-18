@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getStroke } from 'perfect-freehand'
 import { getSvgPathFromStroke } from './strokeToPath'
-import { paintBackground, PAPER_COLORS, type PageViewBounds } from './background'
+import { paintBackground, getPaperAppearance, type PageViewBounds } from './background'
 import {
   PEN_COLORS,
   HIGHLIGHTER_COLORS,
@@ -26,6 +26,7 @@ import {
   updateSymbolPosition,
   type PageBackground,
   type PaperColor,
+  type LineSpacing,
   type PenType,
   type Stroke,
   type PlacedSymbol,
@@ -211,10 +212,14 @@ export default function InkCanvas({
   pageId,
   background,
   paperColor = 'white',
+  lineSpacing = 'medium',
+  marginLine = false,
 }: {
   pageId: string
   background: PageBackground
   paperColor?: PaperColor
+  lineSpacing?: LineSpacing
+  marginLine?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -377,11 +382,19 @@ export default function InkCanvas({
     // Reset to plain device-pixel space to fill the background/clear,
     // then switch to the content transform for the grid + ink.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.fillStyle = PAPER_COLORS[paperColor].fill
+    ctx.fillStyle = getPaperAppearance(paperColor).fill
     ctx.fillRect(0, 0, cssWidth, cssHeight)
 
     applyContentTransform(ctx, dpr)
-    paintBackground(ctx, background, getViewBounds(cssWidth, cssHeight), transformRef.current.scale, paperColor)
+    paintBackground(
+      ctx,
+      background,
+      getViewBounds(cssWidth, cssHeight),
+      transformRef.current.scale,
+      paperColor,
+      lineSpacing,
+      marginLine,
+    )
     for (const s of strokes) {
       paintStroke(ctx, s.points, s.color, s.size, s.tool, s.penType)
     }
@@ -412,7 +425,18 @@ export default function InkCanvas({
         ctx.restore()
       }
     }
-  }, [applyContentTransform, background, getViewBounds, paintStroke, paperColor, selection, strokes, symbols])
+  }, [
+    applyContentTransform,
+    background,
+    getViewBounds,
+    lineSpacing,
+    marginLine,
+    paintStroke,
+    paperColor,
+    selection,
+    strokes,
+    symbols,
+  ])
 
   const redrawLive = useCallback(() => {
     const canvas = liveCanvasRef.current

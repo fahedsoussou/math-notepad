@@ -18,6 +18,15 @@ export interface Folder {
   deletedAt: number | null
 }
 
+export type PageBackground = 'blank' | 'lined' | 'grid' | 'dotted' | 'cornell'
+
+/** Paper colour, independent of the line/dot pattern above. One of the 4
+ * named presets ('white' | 'black' | 'blue' | 'graphite'), or any custom
+ * CSS hex string picked from the colour wheel in the New notebook dialog. */
+export type PaperColor = string
+
+export type LineSpacing = 'narrow' | 'medium' | 'wide' | 'xwide'
+
 export interface Notebook {
   id: string
   folderId: string
@@ -26,12 +35,15 @@ export interface Notebook {
   updatedAt: number
   lastOpenedAt: number | null
   deletedAt: number | null
+  /** Chosen once in the "New notebook" dialog; new pages in this notebook
+   * start with these (still editable per-page afterwards). Added later —
+   * absent on older notebooks, in which case `createPage` falls back to
+   * the same defaults pages always had ('blank'/'white'/'medium'/off). */
+  defaultBackground?: PageBackground
+  defaultPaperColor?: PaperColor
+  defaultLineSpacing?: LineSpacing
+  defaultMarginLine?: boolean
 }
-
-export type PageBackground = 'blank' | 'lined' | 'grid' | 'dotted'
-
-/** Paper colour, independent of the line/dot pattern above. */
-export type PaperColor = 'white' | 'black' | 'blue' | 'graphite'
 
 export interface Page {
   id: string
@@ -43,6 +55,10 @@ export interface Page {
   background?: PageBackground
   /** Added later; absent on older pages, default to 'white' when reading. */
   paperColor?: PaperColor
+  /** Added later; absent on older pages, default to 'medium' when reading. */
+  lineSpacing?: LineSpacing
+  /** Added later; absent on older pages, default to false (off) when reading. */
+  marginLine?: boolean
   createdAt: number
   updatedAt: number
   deletedAt: number | null
@@ -179,7 +195,14 @@ export async function restoreFolder(id: string): Promise<void> {
 
 // ---- Notebooks ----------------------------------------------------------
 
-export async function createNotebook(folderId: string, name: string): Promise<Notebook> {
+export interface NotebookDefaults {
+  background?: PageBackground
+  paperColor?: PaperColor
+  lineSpacing?: LineSpacing
+  marginLine?: boolean
+}
+
+export async function createNotebook(folderId: string, name: string, defaults?: NotebookDefaults): Promise<Notebook> {
   const now = Date.now()
   const notebook: Notebook = {
     id: newId(),
@@ -189,6 +212,10 @@ export async function createNotebook(folderId: string, name: string): Promise<No
     updatedAt: now,
     lastOpenedAt: null,
     deletedAt: null,
+    defaultBackground: defaults?.background,
+    defaultPaperColor: defaults?.paperColor,
+    defaultLineSpacing: defaults?.lineSpacing,
+    defaultMarginLine: defaults?.marginLine,
   }
   await db.notebooks.add(notebook)
   return notebook
@@ -252,13 +279,20 @@ export async function duplicateNotebook(id: string): Promise<Notebook | null> {
 
 export async function createPage(notebookId: string, title = 'Untitled page'): Promise<Page> {
   const now = Date.now()
-  const existing = await db.pages.where({ notebookId }).toArray()
+  const [existing, notebook] = await Promise.all([
+    db.pages.where({ notebookId }).toArray(),
+    db.notebooks.get(notebookId),
+  ])
   const maxOrder = existing.reduce((max, p) => Math.max(max, p.order), -1)
   const page: Page = {
     id: newId(),
     notebookId,
     order: maxOrder + 1,
     title,
+    background: notebook?.defaultBackground,
+    paperColor: notebook?.defaultPaperColor,
+    lineSpacing: notebook?.defaultLineSpacing,
+    marginLine: notebook?.defaultMarginLine,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -302,6 +336,14 @@ export async function setPageBackground(id: string, background: PageBackground):
 
 export async function setPaperColor(id: string, paperColor: PaperColor): Promise<void> {
   await db.pages.update(id, { paperColor, updatedAt: Date.now() })
+}
+
+export async function setLineSpacing(id: string, lineSpacing: LineSpacing): Promise<void> {
+  await db.pages.update(id, { lineSpacing, updatedAt: Date.now() })
+}
+
+export async function setMarginLine(id: string, marginLine: boolean): Promise<void> {
+  await db.pages.update(id, { marginLine, updatedAt: Date.now() })
 }
 
 // ---- Strokes ----------------------------------------------------------

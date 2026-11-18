@@ -746,14 +746,65 @@ per Rule 3 — each gets tablet-tested on its own before the next starts.
   targets (40px circles) need confirming they're comfortable with the S
   Pen/finger on the real screen.
 
+### Step E — New notebook dialog: DONE ✅ (built, not yet tablet-tested)
+
+- **"Format" (A4 portrait/landscape) deliberately left out.** Our pages
+  are a truly infinite, pannable/zoomable canvas, not a fixed A4 sheet —
+  there's no "page size" concept to set. Adding a Format toggle that did
+  nothing would be a dead control; this is a real architectural
+  difference from Tratto, not an oversight.
+- `src/storage/db.ts`: `PageBackground` gained `'cornell'`. `PaperColor`
+  is now a plain `string` (was a closed 4-value union) so a custom
+  colour-wheel pick can be stored, not just the 4 named presets — old
+  stored values ('white' etc.) are still valid strings, so this is a
+  compatible widening, not a migration. New `LineSpacing = 'narrow' |
+  'medium' | 'wide' | 'xwide'` (`'medium'` = the original fixed 32-unit
+  spacing, so old pages render identically). `Page` gained `lineSpacing`
+  and `marginLine` fields (additive, default medium/off when absent).
+  `Notebook` gained `defaultBackground`/`defaultPaperColor`/
+  `defaultLineSpacing`/`defaultMarginLine` — set once from the new
+  dialog, and `createPage` now reads them from the parent notebook so
+  every page in that notebook starts with the chosen look (still
+  overridable per-page via the existing Background button). New
+  `setLineSpacing`/`setMarginLine` helpers, parallel to `setPaperColor`.
+- `src/canvas/background.ts`: `getPaperAppearance(paperColor)` added —
+  looks up the 4 named presets as before, and for anything else (a
+  custom hex) derives a visible line/grid colour from the paper's own
+  luminance (lighten on dark paper, darken on light paper), so a custom
+  paper colour never ends up with invisible ruling. `paintBackground`
+  takes `lineSpacing` (picks the line/dot gap) and `marginLine` (draws a
+  fixed red vertical line at page-space x=70, independent of the pattern
+  — visible even on `'blank'`). `'cornell'` renders as the normal lined
+  pattern to the right of a divider at page-space x=140, with nothing
+  ruled to its left (the cue column) — **only the left-margin half of
+  Tratto's two-part Cornell layout**: an infinite canvas has no fixed
+  page bottom, so the classic "ruled area / cue column / bottom summary
+  strip" three-part layout doesn't have a natural place to put the
+  bottom strip. Noting this as a real limitation, not a bug.
+- New `src/library/NewNotebookDialog.tsx`: title field (defaults to
+  "Notes `<today's date>`"), a 5-pattern grid with small CSS-drawn
+  previews (Blank/Lined/Grid/Dotted/Cornell), paper-colour row (4 preset
+  swatches + a conic-gradient "custom" swatch that opens a hidden
+  `<input type="color">`), a spacing segmented control, and a margin-line
+  checkbox — Cancel/Create. Wired into both `HomeScreen.tsx` (replacing
+  the old `window.prompt()` flow) and `FolderScreen.tsx`'s "+ Notebook"
+  button, calling the new `createNotebook(folderId, name, defaults)`.
+- **Bug found and fixed while building this**: the title `<input>` had
+  no explicit `background`/`color`, so Chrome's auto-dark-mode force-
+  darkened it to dark-on-dark (same class of bug as the Step 1 dark-mode
+  text bug) — fixed by setting both explicitly. **Keep doing this for
+  every new input/control, not just text.**
+- Verified in the desktop browser preview end to end: picked Cornell +
+  Wide spacing + Margin line + default (white) paper, created the
+  notebook, added its first page, and confirmed it opened already set to
+  "Background: Cornell" with both the Cornell divider and the red margin
+  line rendering at their own distinct x positions. **Not yet
+  tablet-tested** — the custom colour-wheel picker in particular should
+  be tried with the S Pen/finger, since `<input type="color">` UI is
+  OS-provided and may behave differently on Android.
+
 ### Still open from Fahed's "match the design" request
 
-Picked off one piece at a time, each needing its own tablet test before
-the next starts:
-- **New notebook dialog** (format A4 portrait/landscape, pattern incl.
-  Cornell, paper colour swatches + a custom picker, line spacing, margin
-  line toggle) — currently still a plain `window.prompt()` for the name
-  only. Next logical step.
 - **Editor toolbar as icon-only** (pen/highlighter/eraser/lasso/shapes as
   icons instead of text buttons, size swatches shown as scaled dots like
   the reference screenshot, a page counter "`1/1`", and the ⋮ overflow

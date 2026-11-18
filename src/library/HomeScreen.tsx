@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, createFolder, createNotebook } from '../storage/db'
+import { db, createFolder, createNotebook, type NotebookDefaults } from '../storage/db'
 import * as s from './styles'
 import NewFolderDialog from './NewFolderDialog'
+import NewNotebookDialog from './NewNotebookDialog'
 import { FolderIcon, PageIcon, SettingsIcon, TrashIcon } from './icons'
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
 
 export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, onOpenSettings }: Props) {
   const [showNewFolder, setShowNewFolder] = useState(false)
+  const [showNewNotebook, setShowNewNotebook] = useState(false)
 
   const folders = useLiveQuery(() => db.folders.filter((f) => f.deletedAt === null).sortBy('name'), [])
   const recentNotebooks = useLiveQuery(
@@ -44,9 +46,8 @@ export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, 
     await createFolder(name, color)
   }
 
-  const handleNewNotebookNoFolder = async () => {
-    const name = window.prompt('Notebook name?')
-    if (!name?.trim()) return
+  const handleCreateNotebook = async (name: string, defaults: NotebookDefaults) => {
+    setShowNewNotebook(false)
     // Notebooks created from Home with no folder context go in a virtual
     // "Unfiled" bucket: we still need *a* folder id, so the first folder is
     // used, or one is created automatically if none exist yet.
@@ -54,7 +55,7 @@ export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, 
     if (!folder) {
       folder = await createFolder('Unfiled', '#71717a')
     }
-    const notebook = await createNotebook(folder.id, name.trim())
+    const notebook = await createNotebook(folder.id, name, defaults)
     onOpenNotebook(notebook.id, folder.id)
   }
 
@@ -117,12 +118,15 @@ export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, 
         <button style={s.iconButton} onClick={() => setShowNewFolder(true)}>
           + New folder
         </button>
-        <button style={s.primaryButton} onClick={handleNewNotebookNoFolder}>
+        <button style={s.primaryButton} onClick={() => setShowNewNotebook(true)}>
           + New notebook
         </button>
       </div>
 
       {showNewFolder && <NewFolderDialog onSave={handleCreateFolder} onCancel={() => setShowNewFolder(false)} />}
+      {showNewNotebook && (
+        <NewNotebookDialog onCreate={handleCreateNotebook} onCancel={() => setShowNewNotebook(false)} />
+      )}
     </div>
   )
 }

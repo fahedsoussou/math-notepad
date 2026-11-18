@@ -9,9 +9,11 @@ import {
   trashNotebook,
   duplicateNotebook,
   moveNotebook,
+  type NotebookDefaults,
 } from '../storage/db'
 import * as s from './styles'
 import NewFolderDialog from './NewFolderDialog'
+import NewNotebookDialog from './NewNotebookDialog'
 import { useEntity } from './useEntity'
 
 interface Props {
@@ -22,6 +24,7 @@ interface Props {
 
 export default function FolderScreen({ folderId, onBack, onOpenNotebook }: Props) {
   const [showEditFolder, setShowEditFolder] = useState(false)
+  const [showNewNotebook, setShowNewNotebook] = useState(false)
   const [menuFor, setMenuFor] = useState<string | null>(null)
 
   const folder = useEntity(() => db.folders.get(folderId), [folderId])
@@ -47,10 +50,9 @@ export default function FolderScreen({ folderId, onBack, onOpenNotebook }: Props
     )
   }
 
-  const handleNewNotebook = async () => {
-    const name = window.prompt('Notebook name?')
-    if (!name?.trim()) return
-    const notebook = await createNotebook(folderId, name.trim())
+  const handleCreateNotebook = async (name: string, defaults: NotebookDefaults) => {
+    setShowNewNotebook(false)
+    const notebook = await createNotebook(folderId, name, defaults)
     onOpenNotebook(notebook.id)
   }
 
@@ -93,7 +95,7 @@ export default function FolderScreen({ folderId, onBack, onOpenNotebook }: Props
         <div style={s.headerTitle}>{folder.name}</div>
         <button style={s.iconButton} onClick={() => setShowEditFolder(true)}>Edit</button>
         <button style={s.dangerButton} onClick={handleDeleteFolder}>Delete</button>
-        <button style={s.primaryButton} onClick={handleNewNotebook}>+ Notebook</button>
+        <button style={s.primaryButton} onClick={() => setShowNewNotebook(true)}>+ Notebook</button>
       </div>
 
       {notebooks && notebooks.length === 0 && (
@@ -143,6 +145,9 @@ export default function FolderScreen({ folderId, onBack, onOpenNotebook }: Props
           }}
           onCancel={() => setShowEditFolder(false)}
         />
+      )}
+      {showNewNotebook && (
+        <NewNotebookDialog onCreate={handleCreateNotebook} onCancel={() => setShowNewNotebook(false)} />
       )}
     </div>
   )
