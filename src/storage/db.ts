@@ -111,6 +111,15 @@ export interface AppSettings {
   geminiApiKey: string | null
   suggestMode: boolean
   darkMode: boolean
+  /** Added later; absent on older settings rows, default 'i' when reading. */
+  imaginaryUnit?: 'i' | 'j'
+  /** Added later; absent on older settings rows, default false (Euler's
+   * number) when reading. */
+  eulerAsVariable?: boolean
+  /** Added later; absent on older settings rows, default true when reading. */
+  implicitMultiplication?: boolean
+  /** Added later; absent on older settings rows, default false when reading. */
+  electricalMode?: boolean
 }
 
 export const SETTINGS_ID = 'app' as const
@@ -120,6 +129,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   geminiApiKey: null,
   suggestMode: true,
   darkMode: false,
+  imaginaryUnit: 'i',
+  eulerAsVariable: false,
+  implicitMultiplication: true,
+  electricalMode: false,
 }
 
 class MathNotepadDB extends Dexie {

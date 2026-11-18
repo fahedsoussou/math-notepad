@@ -14,6 +14,7 @@ import InkCanvas from '../canvas/InkCanvas'
 import { PAPER_COLORS } from '../canvas/background'
 import * as s from './styles'
 import { useEntity } from './useEntity'
+import MathPanel from '../math-engine/MathPanel'
 
 interface Props {
   pageId: string
@@ -44,6 +45,7 @@ export default function PageScreen({ pageId, notebookId, onBack, onNavigatePage 
     [notebookId],
   )
   const [showBgMenu, setShowBgMenu] = useState(false)
+  const [showMathPanel, setShowMathPanel] = useState(false)
 
   const pageIndex = siblingPages?.findIndex((p) => p.id === pageId) ?? -1
   const pageCount = siblingPages?.length ?? 0
@@ -91,6 +93,7 @@ export default function PageScreen({ pageId, notebookId, onBack, onNavigatePage 
       <div style={s.header}>
         <button style={s.iconButton} onClick={onBack}>← Back</button>
         <div style={s.headerTitle}>{page.title}</div>
+        <button style={s.iconButton} onClick={() => setShowMathPanel(true)}>Math</button>
         <div style={{ position: 'relative' }}>
           <button style={s.iconButton} onClick={() => setShowBgMenu((v) => !v)}>
             Background: {BACKGROUND_LABELS[background]}
@@ -170,6 +173,7 @@ export default function PageScreen({ pageId, notebookId, onBack, onNavigatePage 
           onDeletePage={handleDeletePage}
         />
       </div>
+      {showMathPanel && <MathPanel onClose={() => setShowMathPanel(false)} />}
     </div>
   )
 }

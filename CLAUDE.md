@@ -969,9 +969,47 @@ flagged as a risk back in Step 2 ("if palm strokes still leak through…").
   inconsistent between Home and those screens until they get the same
   pass.
 
-## What Phase 1 will need
+## Autonomous session, 2026-11-18 — Phase 1 math engine built (DONE, tablet untested)
 
-- A basic recognition step (even a simple/placeholder one at first) to turn
-  strokes into a math expression string.
-- Wire up Pyodide + SymPy in a Web Worker (`src/math-engine/`) so typing/
-  writing `expr =` returns a solved result.
+Fahed asked for an autonomous session through Phases 3→4→5→6→2→7, working
+without feedback since he was unavailable. **Full detail, bug-by-bug, is in
+`PROGRESS.md` — read that file for this session's work, not just this
+summary.** `TABLET-TESTS.md` has what to test when back on the tablet.
+
+Short version: Phases 3–6 all need a working math engine, which didn't
+exist yet (only Phase 1A's library/canvas did) — so Phase 1 (recognition
+placeholder + SymPy/Pyodide math engine) was built first, as a technical
+necessity, not a detour from the instruction.
+
+- `src/math-engine/` (new): `pythonSource.ts` (SymPy logic, shared
+  verbatim between the browser Worker and the Vitest test bank),
+  `worker.ts` (Pyodide in a Web Worker, loaded from a CDN — full offline
+  math is a later Phase 7 item), `client.ts` (timeout/Cancel/respawn —
+  Python can't be interrupted mid-call, so cancelling means terminating
+  the worker), `MathPanel.tsx` (the UI: Solve/Differentiate/Integrate/
+  Simplify with KaTeX-rendered, numerically-verified steps).
+- Real step-by-step for linear/quadratic solving and a genuine recursive
+  derivative decomposer (sum/product/power/chain rule + elementary
+  functions) and integral rules (sum/constant/power + sin/cos/exp) — not
+  one opaque library call. Anything outside that falls back to a single
+  SymPy call, honestly marked `unverified_breakdown: true`.
+- Every result is checked numerically (substituting random values), per
+  Fahed's quality rule — not just trusted from SymPy.
+- `tests/`: a real Vitest test bank (63 tests, not mocked — loads actual
+  Pyodide+SymPy under Node) covering solve/diff/integrate/simplify.
+  `npm test` runs it. Growing alongside each new phase (series/stats/
+  matrices/ODEs/electrical don't exist yet, so can't be tested yet).
+- `src/storage/db.ts`: `AppSettings` gained notation fields
+  (`imaginaryUnit`, `eulerAsVariable`, `implicitMultiplication`,
+  `electricalMode`) — additive, engine already honours them, **Settings
+  screen UI for these not built yet**.
+- Six real bugs found and fixed while building this (symbol-identity
+  mismatch that silently zeroed every derivative, a `real=True` SymPy
+  correctness issue, template-literal backticks, module-vs-classic worker/
+  importScripts, timeout counting Pyodide's cold-start download, and a
+  JsProxy/dict mismatch) — see `PROGRESS.md` for the full story on each;
+  worth reading before touching `pythonSource.ts` or `worker.ts` again.
+- **Verified live in the browser** (quadratic solve, product-rule
+  derivative), not just unit tests. **Not yet tablet-tested** — needs a
+  network connection the first time per session, which the tablet test
+  must confirm works the same as desktop.
