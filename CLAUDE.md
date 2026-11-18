@@ -643,6 +643,72 @@ every line below is fresh TS/CSS matching the same look.
   swatch border + Save button, and page backgrounds all show the new
   ink-blue/cooler palette consistently. **Not yet tablet-tested.**
 
+### Step C — Pen types (fountain/ballpoint/pencil/calligraphy/marker): DONE ✅ (built, not yet tablet-tested)
+
+Fahed wants to take Tratto's UI/UX more broadly (library + pages), to
+customize toward math later; picked "different pen types and textures"
+as the next concrete piece, since that's directly implementable without
+restructuring the library. Highlighter is unaffected — this only adds
+texture/feel variants to the `'pen'` tool.
+
+- `src/storage/db.ts`: new `PenType = 'fountain' | 'ballpoint' | 'pencil'
+  | 'calligraphy' | 'marker'`, and an optional `Stroke.penType` field.
+  Additive, same pattern as every other schema addition — absent on old
+  strokes (and on highlighter strokes, where it's meaningless), defaults
+  to `'fountain'` when reading. `'fountain'`'s tuning is deliberately
+  identical to the app's original (only) pen feel, so every stroke drawn
+  before this step still renders exactly as before.
+- `src/canvas/colors.ts`: `PEN_TYPES`, `PEN_TYPE_LABELS`, and
+  `PEN_TYPE_OPTIONS` (perfect-freehand `thinning`/`smoothing`/`streamline`
+  + a fill `alpha` per type). These are tuned numbers, not anything from
+  Tratto's actual brush code (which is Kotlin + native `androidx.ink`
+  brush families — not portable or legal to copy; no license, as noted in
+  Step B) — just picked to feel distinct: ballpoint is thin/uniform/crisp,
+  marker is thick/low-taper/slightly translucent, pencil is desaturated
+  with added grain (below), calligraphy ignores its own thinning value and
+  instead derives per-point width from stroke *direction* (below).
+- `src/canvas/InkCanvas.tsx`:
+  - `paintStroke` now takes an optional `PenType` and looks up its preset;
+    highlighter/eraser/lasso are unaffected (only `tool === 'pen'` reads
+    `PEN_TYPE_OPTIONS`).
+  - **Calligraphy**: `applyCalligraphyAngle()` rewrites each point's
+    pressure based on the stroke's local direction relative to a fixed
+    45° "nib" angle (`0.35 + 0.65 * |sin(angle - nibAngle)|`), before
+    handing points to `getStroke` — a diagonal stroke comes out
+    noticeably thicker than a stroke along the nib's own axis, the
+    classic chisel-tip look. Verified in the desktop preview: a diagonal
+    test stroke rendered visibly thicker than a horizontal one with the
+    same pen size.
+  - **Pencil texture**: `paintPencilTexture()` clips to the stroke's own
+    filled outline and multiply-blends a small (24×24, built once and
+    cached) random-dot pattern over it at low alpha — cheap grain, no
+    image asset. Combined with a lower base fill alpha (0.72), pencil
+    strokes read as lighter and textured next to solid-black fountain/
+    ballpoint strokes. Verified: visibly lighter/greyer in the preview;
+    fine-grain visibility at normal viewing size needs the real tablet
+    screen to judge properly.
+  - A pen-type `<select>` dropdown was added to `Toolbar.tsx`, shown only
+    when `tool === 'pen'` (hidden for highlighter/eraser/lasso), next to
+    the colour/size controls.
+- Verified in the desktop browser preview: switching type via the
+  dropdown changes new strokes only (existing strokes keep their stored
+  `penType`); fountain vs. ballpoint width/taper difference is visible
+  side by side; pencil renders lighter; calligraphy's angle-dependent
+  width is visible. **Not yet tablet-tested** — pressure-based width
+  (fountain, calligraphy) depends on real S Pen pressure data, which this
+  desktop preview can't provide (synthetic pointer events have no real
+  pressure curve), so the *feel* of each type needs confirming on the
+  actual tablet before trusting it.
+
+### Still open from Fahed's broader "take the UX/UI" request
+
+- Only the pen-type piece above has been built so far. The rest of
+  "library and pages" styling (screen layouts, card/thumbnail look,
+  library organisation patterns like Tratto's cover thumbnails or
+  favourites-pinned-to-top from the earlier comparison table) hasn't been
+  touched yet — pick the next concrete piece the same way pen types was
+  picked, one small step at a time, rather than a single big reskin.
+
 ## What Phase 1 will need
 
 - A basic recognition step (even a simple/placeholder one at first) to turn

@@ -48,6 +48,9 @@ export interface Page {
   deletedAt: number | null
 }
 
+/** Pen "feel" — width/taper/opacity/texture, independent of colour and size. */
+export type PenType = 'fountain' | 'ballpoint' | 'pencil' | 'calligraphy' | 'marker'
+
 /** A single pen/highlighter stroke, in page-space coordinates (independent of pan/zoom). */
 export interface Stroke {
   id: string
@@ -55,6 +58,9 @@ export interface Stroke {
   tool: 'pen' | 'highlighter'
   color: string
   size: number
+  /** Added later; only meaningful when `tool === 'pen'`; absent on older
+   * strokes and on highlighter strokes, default to 'fountain' when reading. */
+  penType?: PenType
   /** [x, y, pressure] per point, in page-space coordinates. */
   points: [number, number, number][]
   createdAt: number

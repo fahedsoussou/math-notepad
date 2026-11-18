@@ -1,3 +1,29 @@
+import type { PenType } from '../storage/db'
+
+export const PEN_TYPES: PenType[] = ['fountain', 'ballpoint', 'pencil', 'calligraphy', 'marker']
+
+export const PEN_TYPE_LABELS: Record<PenType, string> = {
+  fountain: 'Fountain pen',
+  ballpoint: 'Ballpoint',
+  pencil: 'Pencil',
+  calligraphy: 'Calligraphy',
+  marker: 'Marker',
+}
+
+/** perfect-freehand tuning + opacity per pen type. `fountain` matches the
+ * app's original (only) pen feel, so old strokes with no stored `penType`
+ * look identical to before. */
+export const PEN_TYPE_OPTIONS: Record<
+  PenType,
+  { thinning: number; smoothing: number; streamline: number; alpha: number }
+> = {
+  fountain: { thinning: 0.6, smoothing: 0.5, streamline: 0.5, alpha: 1 },
+  ballpoint: { thinning: 0.15, smoothing: 0.3, streamline: 0.4, alpha: 1 },
+  pencil: { thinning: 0.5, smoothing: 0.45, streamline: 0.4, alpha: 0.72 },
+  calligraphy: { thinning: 0.3, smoothing: 0.4, streamline: 0.5, alpha: 1 },
+  marker: { thinning: 0.1, smoothing: 0.3, streamline: 0.3, alpha: 0.85 },
+}
+
 // Small fixed ink palette — a free color picker is unnecessary precision
 // for a touch tablet and harder to tap accurately than a few big swatches.
 export const PEN_COLORS = [

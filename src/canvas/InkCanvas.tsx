@@ -2,7 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getStroke } from 'perfect-freehand'
 import { getSvgPathFromStroke } from './strokeToPath'
 import { paintBackground, PAPER_COLORS, type PageViewBounds } from './background'
-import { PEN_COLORS, HIGHLIGHTER_COLORS, PEN_SIZES, HIGHLIGHTER_SIZES, HIGHLIGHTER_ALPHA, ERASER_SCREEN_RADIUS } from './colors'
+import {
+  PEN_COLORS,
+  HIGHLIGHTER_COLORS,
+  PEN_SIZES,
+  HIGHLIGHTER_SIZES,
+  HIGHLIGHTER_ALPHA,
+  ERASER_SCREEN_RADIUS,
+  PEN_TYPES,
+  PEN_TYPE_OPTIONS,
+} from './colors'
 import { SYMBOL_PLACED_SIZE } from './symbols'
 import { strokeInPolygon, symbolInPolygon, selectionBounds, boundsContains, type Bounds } from './lasso'
 import Toolbar from './Toolbar'
@@ -17,6 +26,7 @@ import {
   updateSymbolPosition,
   type PageBackground,
   type PaperColor,
+  type PenType,
   type Stroke,
   type PlacedSymbol,
 } from '../storage/db'
@@ -25,6 +35,60 @@ export type Tool = 'pen' | 'highlighter' | 'eraser' | 'lasso'
 
 
 type PagePoint = [number, number, number] // x, y, pressure — all in page-space
+
+/** Chisel-nib feel: width (via synthetic pressure) depends on stroke
+ * direction relative to a fixed nib angle, like a real calligraphy pen. */
+function applyCalligraphyAngle(points: PagePoint[]): PagePoint[] {
+  const NIB_ANGLE = Math.PI / 4
+  return points.map(([x, y, pressure], i) => {
+    const prev = points[Math.max(0, i - 1)]
+    const next = points[Math.min(points.length - 1, i + 1)]
+    const angle = Math.atan2(next[1] - prev[1], next[0] - prev[0])
+    const factor = 0.35 + 0.65 * Math.abs(Math.sin(angle - NIB_ANGLE))
+    return [x, y, pressure * factor]
+  })
+}
+
+// Built once, lazily, and reused for every pencil stroke.
+let pencilTextureCanvas: HTMLCanvasElement | null = null
+function getPencilTexture(): HTMLCanvasElement {
+  if (pencilTextureCanvas) return pencilTextureCanvas
+  const c = document.createElement('canvas')
+  c.width = 24
+  c.height = 24
+  const tctx = c.getContext('2d')!
+  tctx.fillStyle = '#ffffff'
+  tctx.fillRect(0, 0, 24, 24)
+  tctx.fillStyle = 'rgba(0,0,0,0.6)'
+  for (let i = 0; i < 50; i++) {
+    tctx.fillRect(Math.random() * 24, Math.random() * 24, 1, 1)
+  }
+  pencilTextureCanvas = c
+  return c
+}
+
+/** Grainy multiply-blended texture, clipped to the stroke's own outline. */
+function paintPencilTexture(ctx: CanvasRenderingContext2D, path: Path2D, points: PagePoint[], size: number) {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const [x, y] of points) {
+    minX = Math.min(minX, x)
+    minY = Math.min(minY, y)
+    maxX = Math.max(maxX, x)
+    maxY = Math.max(maxY, y)
+  }
+  const pattern = ctx.createPattern(getPencilTexture(), 'repeat')
+  if (!pattern) return
+  ctx.save()
+  ctx.clip(path)
+  ctx.globalAlpha = 0.3
+  ctx.globalCompositeOperation = 'multiply'
+  ctx.fillStyle = pattern
+  ctx.fillRect(minX - size, minY - size, maxX - minX + size * 2, maxY - minY + size * 2)
+  ctx.restore()
+}
 
 interface Transform {
   offsetX: number
@@ -173,6 +237,7 @@ export default function InkCanvas({
   const [tool, setTool] = useState<Tool>('pen')
   const [penColor, setPenColor] = useState<string>(PEN_COLORS[0])
   const [penSize, setPenSize] = useState<number>(PEN_SIZES[1])
+  const [penType, setPenType] = useState<PenType>(PEN_TYPES[0])
   const [highlighterColor, setHighlighterColor] = useState<string>(HIGHLIGHTER_COLORS[0])
   const [highlighterSize, setHighlighterSize] = useState<number>(HIGHLIGHTER_SIZES[0])
   const activeColor = tool === 'highlighter' ? highlighterColor : penColor
@@ -180,9 +245,11 @@ export default function InkCanvas({
   const toolRef = useRef<Tool>(tool)
   const activeColorRef = useRef(activeColor)
   const activeSizeRef = useRef(activeSize)
+  const penTypeRef = useRef(penType)
   toolRef.current = tool
   activeColorRef.current = activeColor
   activeSizeRef.current = activeSize
+  penTypeRef.current = penType
 
   const [undoStack, setUndoStack] = useState<UndoAction[]>([])
   const [redoStack, setRedoStack] = useState<UndoAction[]>([])
@@ -264,21 +331,36 @@ export default function InkCanvas({
   }, [screenToPage])
 
   const paintStroke = useCallback(
-    (ctx: CanvasRenderingContext2D, points: PagePoint[], color: string, size: number, strokeTool: Tool) => {
+    (
+      ctx: CanvasRenderingContext2D,
+      points: PagePoint[],
+      color: string,
+      size: number,
+      strokeTool: Tool,
+      strokePenType?: PenType,
+    ) => {
       if (points.length === 0) return
-      const stroke = getStroke(points, {
+      const isPen = strokeTool === 'pen'
+      const penOptions = PEN_TYPE_OPTIONS[strokePenType ?? PEN_TYPES[0]]
+      const inputPoints = isPen && strokePenType === 'calligraphy' ? applyCalligraphyAngle(points) : points
+      const stroke = getStroke(inputPoints, {
         size,
-        thinning: 0.6,
-        smoothing: 0.5,
-        streamline: 0.5,
+        thinning: isPen ? penOptions.thinning : 0.6,
+        smoothing: isPen ? penOptions.smoothing : 0.5,
+        streamline: isPen ? penOptions.streamline : 0.5,
         simulatePressure: false,
       })
       const path = getSvgPathFromStroke(stroke)
+      const svgPath = new Path2D(path)
       const previousAlpha = ctx.globalAlpha
-      ctx.globalAlpha = strokeTool === 'highlighter' ? HIGHLIGHTER_ALPHA : 1
+      ctx.globalAlpha = strokeTool === 'highlighter' ? HIGHLIGHTER_ALPHA : isPen ? penOptions.alpha : 1
       ctx.fillStyle = color
-      ctx.fill(new Path2D(path))
+      ctx.fill(svgPath)
       ctx.globalAlpha = previousAlpha
+
+      if (isPen && strokePenType === 'pencil') {
+        paintPencilTexture(ctx, svgPath, points, size)
+      }
     },
     [],
   )
@@ -301,7 +383,7 @@ export default function InkCanvas({
     applyContentTransform(ctx, dpr)
     paintBackground(ctx, background, getViewBounds(cssWidth, cssHeight), transformRef.current.scale, paperColor)
     for (const s of strokes) {
-      paintStroke(ctx, s.points, s.color, s.size, s.tool)
+      paintStroke(ctx, s.points, s.color, s.size, s.tool, s.penType)
     }
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -357,7 +439,14 @@ export default function InkCanvas({
       return
     }
     if (toolRef.current !== 'eraser') {
-      paintStroke(ctx, currentPoints.current, activeColorRef.current, activeSizeRef.current, toolRef.current)
+      paintStroke(
+        ctx,
+        currentPoints.current,
+        activeColorRef.current,
+        activeSizeRef.current,
+        toolRef.current,
+        penTypeRef.current,
+      )
     }
   }, [applyContentTransform, paintStroke])
 
@@ -735,6 +824,7 @@ export default function InkCanvas({
         tool: tool as 'pen' | 'highlighter',
         color: activeColor,
         size: activeSize,
+        ...(tool === 'pen' ? { penType } : {}),
         points,
         createdAt: Date.now(),
       }
@@ -906,6 +996,8 @@ export default function InkCanvas({
         onColorChange={(c) => (tool === 'highlighter' ? setHighlighterColor(c) : setPenColor(c))}
         size={activeSize}
         onSizeChange={(sz) => (tool === 'highlighter' ? setHighlighterSize(sz) : setPenSize(sz))}
+        penType={penType}
+        onPenTypeChange={setPenType}
         canUndo={undoStack.length > 0}
         canRedo={redoStack.length > 0}
         onUndo={handleUndo}

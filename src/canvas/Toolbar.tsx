@@ -1,6 +1,14 @@
 import type { Tool } from './InkCanvas'
-import { PEN_COLORS, HIGHLIGHTER_COLORS, PEN_SIZES, HIGHLIGHTER_SIZES } from './colors'
+import {
+  PEN_COLORS,
+  HIGHLIGHTER_COLORS,
+  PEN_SIZES,
+  HIGHLIGHTER_SIZES,
+  PEN_TYPES,
+  PEN_TYPE_LABELS,
+} from './colors'
 import { ACCENT } from '../library/styles'
+import type { PenType } from '../storage/db'
 
 interface Props {
   tool: Tool
@@ -9,6 +17,8 @@ interface Props {
   onColorChange: (color: string) => void
   size: number
   onSizeChange: (size: number) => void
+  penType: PenType
+  onPenTypeChange: (penType: PenType) => void
   canUndo: boolean
   canRedo: boolean
   onUndo: () => void
@@ -56,6 +66,8 @@ export default function Toolbar({
   onColorChange,
   size,
   onSizeChange,
+  penType,
+  onPenTypeChange,
   canUndo,
   canRedo,
   onUndo,
@@ -101,6 +113,29 @@ export default function Toolbar({
             Delete
           </button>
         </div>
+      )}
+
+      {tool === 'pen' && (
+        <select
+          value={penType}
+          onChange={(e) => onPenTypeChange(e.target.value as PenType)}
+          aria-label="Pen type"
+          style={{
+            border: '1px solid #d7dde5',
+            borderRadius: 8,
+            padding: '8px 10px',
+            fontSize: 14,
+            color: '#1e1e2e',
+            background: 'white',
+            cursor: 'pointer',
+          }}
+        >
+          {PEN_TYPES.map((pt) => (
+            <option key={pt} value={pt}>
+              {PEN_TYPE_LABELS[pt]}
+            </option>
+          ))}
+        </select>
       )}
 
       {showDrawingControls && (
