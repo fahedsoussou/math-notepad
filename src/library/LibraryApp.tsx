@@ -60,7 +60,9 @@ export default function LibraryApp() {
       return (
         <PageScreen
           pageId={route.pageId}
+          notebookId={route.notebookId}
           onBack={() => setRoute({ screen: 'notebook', notebookId: route.notebookId, folderId: route.folderId })}
+          onNavigatePage={(pageId) => setRoute({ screen: 'page', pageId, notebookId: route.notebookId, folderId: route.folderId })}
         />
       )
   }

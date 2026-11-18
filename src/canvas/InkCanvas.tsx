@@ -214,12 +214,26 @@ export default function InkCanvas({
   paperColor = 'white',
   lineSpacing = 'medium',
   marginLine = false,
+  pageIndex,
+  pageCount,
+  onPrevPage,
+  onNextPage,
+  onDuplicatePage,
+  onInsertPageAfter,
+  onDeletePage,
 }: {
   pageId: string
   background: PageBackground
   paperColor?: PaperColor
   lineSpacing?: LineSpacing
   marginLine?: boolean
+  pageIndex: number
+  pageCount: number
+  onPrevPage: () => void
+  onNextPage: () => void
+  onDuplicatePage: () => void
+  onInsertPageAfter: () => void
+  onDeletePage: () => void
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -1032,6 +1046,13 @@ export default function InkCanvas({
         hasSelection={selection !== null}
         onDuplicateSelection={handleDuplicateSelection}
         onDeleteSelection={handleDeleteSelection}
+        pageIndex={pageIndex}
+        pageCount={pageCount}
+        onPrevPage={onPrevPage}
+        onNextPage={onNextPage}
+        onDuplicatePage={onDuplicatePage}
+        onInsertPageAfter={onInsertPageAfter}
+        onDeletePage={onDeletePage}
       />
       {showSymbolPalette && (
         <SymbolPalette onDragStart={handleSymbolDragStart} onClose={() => setShowSymbolPalette(false)} />

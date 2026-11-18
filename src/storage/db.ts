@@ -301,6 +301,39 @@ export async function createPage(notebookId: string, title = 'Untitled page'): P
   return page
 }
 
+/** Creates a new page immediately after `afterPageId` in its notebook's
+ * order, shifting every later page's `order` up by one (in a transaction,
+ * so a crash mid-shift can't leave two pages with the same order). */
+export async function insertPageAfter(afterPageId: string, title = 'Untitled page'): Promise<Page | null> {
+  const current = await db.pages.get(afterPageId)
+  if (!current) return null
+  const now = Date.now()
+  const notebook = await db.notebooks.get(current.notebookId)
+  const newOrder = current.order + 1
+  const page: Page = {
+    id: newId(),
+    notebookId: current.notebookId,
+    order: newOrder,
+    title,
+    background: notebook?.defaultBackground,
+    paperColor: notebook?.defaultPaperColor,
+    lineSpacing: notebook?.defaultLineSpacing,
+    marginLine: notebook?.defaultMarginLine,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+  }
+  await db.transaction('rw', db.pages, async () => {
+    const later = await db.pages
+      .where({ notebookId: current.notebookId })
+      .filter((p) => p.order >= newOrder)
+      .toArray()
+    await Promise.all(later.map((p) => db.pages.update(p.id, { order: p.order + 1 })))
+    await db.pages.add(page)
+  })
+  return page
+}
+
 export async function renamePage(id: string, title: string): Promise<void> {
   await db.pages.update(id, { title, updatedAt: Date.now() })
 }

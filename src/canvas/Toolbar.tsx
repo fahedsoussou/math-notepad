@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Tool } from './InkCanvas'
 import {
   PEN_COLORS,
@@ -9,6 +10,17 @@ import {
 } from './colors'
 import { ACCENT } from '../library/styles'
 import type { PenType } from '../storage/db'
+import {
+  PenIcon,
+  HighlighterIcon,
+  EraserIcon,
+  LassoIcon,
+  UndoIcon,
+  RedoIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  OverflowIcon,
+} from '../library/icons'
 
 interface Props {
   tool: Tool
@@ -29,6 +41,13 @@ interface Props {
   hasSelection: boolean
   onDuplicateSelection: () => void
   onDeleteSelection: () => void
+  pageIndex: number
+  pageCount: number
+  onPrevPage: () => void
+  onNextPage: () => void
+  onDuplicatePage: () => void
+  onInsertPageAfter: () => void
+  onDeletePage: () => void
 }
 
 const barStyle: React.CSSProperties = {
@@ -51,12 +70,26 @@ function toolButtonStyle(active: boolean): React.CSSProperties {
   return {
     border: 'none',
     borderRadius: 8,
-    padding: '8px 12px',
-    fontSize: 14,
+    width: 40,
+    height: 40,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     cursor: 'pointer',
     background: active ? ACCENT : '#e6eaf0',
     color: active ? 'white' : '#1e1e2e',
   }
+}
+
+const menuItemStyle: React.CSSProperties = {
+  border: 'none',
+  background: 'white',
+  color: '#1e1e2e',
+  padding: '10px 14px',
+  textAlign: 'left',
+  cursor: 'pointer',
+  fontSize: 14,
+  whiteSpace: 'nowrap',
 }
 
 export default function Toolbar({
@@ -78,36 +111,54 @@ export default function Toolbar({
   hasSelection,
   onDuplicateSelection,
   onDeleteSelection,
+  pageIndex,
+  pageCount,
+  onPrevPage,
+  onNextPage,
+  onDuplicatePage,
+  onInsertPageAfter,
+  onDeletePage,
 }: Props) {
+  const [showMenu, setShowMenu] = useState(false)
   const colors = tool === 'highlighter' ? HIGHLIGHTER_COLORS : PEN_COLORS
   const sizes = tool === 'highlighter' ? HIGHLIGHTER_SIZES : PEN_SIZES
   const showDrawingControls = tool === 'pen' || tool === 'highlighter'
 
   return (
     <div style={barStyle}>
-      <button style={toolButtonStyle(tool === 'pen')} onClick={() => onToolChange('pen')}>
-        Pen
+      <button style={toolButtonStyle(tool === 'pen')} onClick={() => onToolChange('pen')} aria-label="Pen" title="Pen">
+        <PenIcon />
       </button>
-      <button style={toolButtonStyle(tool === 'highlighter')} onClick={() => onToolChange('highlighter')}>
-        Highlighter
+      <button
+        style={toolButtonStyle(tool === 'highlighter')}
+        onClick={() => onToolChange('highlighter')}
+        aria-label="Highlighter"
+        title="Highlighter"
+      >
+        <HighlighterIcon />
       </button>
-      <button style={toolButtonStyle(tool === 'eraser')} onClick={() => onToolChange('eraser')}>
-        Eraser
+      <button
+        style={toolButtonStyle(tool === 'eraser')}
+        onClick={() => onToolChange('eraser')}
+        aria-label="Eraser"
+        title="Eraser"
+      >
+        <EraserIcon />
       </button>
-      <button style={toolButtonStyle(tool === 'lasso')} onClick={() => onToolChange('lasso')}>
-        Lasso
+      <button style={toolButtonStyle(tool === 'lasso')} onClick={() => onToolChange('lasso')} aria-label="Lasso" title="Lasso">
+        <LassoIcon />
       </button>
-      <button style={toolButtonStyle(false)} onClick={onToggleSymbolPalette} aria-label="Open symbol palette">
-        Ω Symbols
+      <button style={toolButtonStyle(false)} onClick={onToggleSymbolPalette} aria-label="Open symbol palette" title="Symbols">
+        <span style={{ fontSize: 18 }}>Ω</span>
       </button>
 
       {tool === 'lasso' && hasSelection && (
         <div style={{ display: 'flex', gap: 6 }}>
-          <button style={toolButtonStyle(false)} onClick={onDuplicateSelection}>
+          <button style={{ ...toolButtonStyle(false), width: 'auto', padding: '0 12px', fontSize: 14 }} onClick={onDuplicateSelection}>
             Duplicate
           </button>
           <button
-            style={{ ...toolButtonStyle(false), background: '#fde2e2', color: '#9b1c1c' }}
+            style={{ ...toolButtonStyle(false), width: 'auto', padding: '0 12px', fontSize: 14, background: '#fde2e2', color: '#9b1c1c' }}
             onClick={onDeleteSelection}
           >
             Delete
@@ -190,31 +241,95 @@ export default function Toolbar({
         </div>
       )}
 
-      <button
-        style={toolButtonStyle(scratchOutEnabled)}
-        onClick={onToggleScratchOut}
-        aria-label="Toggle scratch-out to erase"
-      >
-        Scratch-out: {scratchOutEnabled ? 'On' : 'Off'}
-      </button>
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button style={{ ...toolButtonStyle(false), opacity: canUndo ? 1 : 0.4 }} onClick={onUndo} disabled={!canUndo} aria-label="Undo" title="Undo">
+          <UndoIcon />
+        </button>
+        <button style={{ ...toolButtonStyle(false), opacity: canRedo ? 1 : 0.4 }} onClick={onRedo} disabled={!canRedo} aria-label="Redo" title="Redo">
+          <RedoIcon />
+        </button>
 
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
         <button
-          style={{ ...toolButtonStyle(false), opacity: canUndo ? 1 : 0.4 }}
-          onClick={onUndo}
-          disabled={!canUndo}
-          aria-label="Undo"
+          style={{ ...toolButtonStyle(false), width: 'auto', padding: '0 4px', opacity: pageIndex > 0 ? 1 : 0.4 }}
+          onClick={onPrevPage}
+          disabled={pageIndex <= 0}
+          aria-label="Previous page"
+          title="Previous page"
         >
-          Undo
+          <ChevronLeftIcon size={18} />
         </button>
+        <span style={{ fontSize: 13, color: '#4b5563', minWidth: 36, textAlign: 'center' }}>
+          {pageCount > 0 ? `${pageIndex + 1}/${pageCount}` : '0/0'}
+        </span>
         <button
-          style={{ ...toolButtonStyle(false), opacity: canRedo ? 1 : 0.4 }}
-          onClick={onRedo}
-          disabled={!canRedo}
-          aria-label="Redo"
+          style={{ ...toolButtonStyle(false), width: 'auto', padding: '0 4px', opacity: pageIndex < pageCount - 1 ? 1 : 0.4 }}
+          onClick={onNextPage}
+          disabled={pageIndex >= pageCount - 1}
+          aria-label="Next page"
+          title="Next page"
         >
-          Redo
+          <ChevronRightIcon size={18} />
         </button>
+
+        <div style={{ position: 'relative' }}>
+          <button style={toolButtonStyle(false)} onClick={() => setShowMenu((v) => !v)} aria-label="More options" title="More">
+            <OverflowIcon />
+          </button>
+          {showMenu && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 4,
+                background: 'white',
+                border: '1px solid #e4e4e7',
+                borderRadius: 8,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                zIndex: 10,
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <button
+                style={menuItemStyle}
+                onClick={() => {
+                  setShowMenu(false)
+                  onToggleScratchOut()
+                }}
+              >
+                Scratch-out: {scratchOutEnabled ? 'On' : 'Off'}
+              </button>
+              <button
+                style={menuItemStyle}
+                onClick={() => {
+                  setShowMenu(false)
+                  onInsertPageAfter()
+                }}
+              >
+                Insert page after this one
+              </button>
+              <button
+                style={menuItemStyle}
+                onClick={() => {
+                  setShowMenu(false)
+                  onDuplicatePage()
+                }}
+              >
+                Duplicate page
+              </button>
+              <button
+                style={{ ...menuItemStyle, color: '#9b1c1c' }}
+                onClick={() => {
+                  setShowMenu(false)
+                  onDeletePage()
+                }}
+              >
+                Delete page
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

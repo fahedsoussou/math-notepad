@@ -803,19 +803,51 @@ per Rule 3 — each gets tablet-tested on its own before the next starts.
   be tried with the S Pen/finger, since `<input type="color">` UI is
   OS-provided and may behave differently on Android.
 
+### Step F — Editor toolbar as icons, page counter, page overflow menu: DONE ✅ (built, not yet tablet-tested)
+
+Matches the reference screenshot's density (one compact icon bar) for
+everything we actually have; deliberately **left out** menu items for
+features that don't exist yet (bookmarks, export, favourites, tags,
+auto-shapes, preferred-pens-bar, extra-smooth-edges, fullscreen,
+write-with-finger, general settings) rather than add dead buttons — see
+"Still open" below for where those stand.
+
+- `src/library/icons.tsx` gained `PenIcon`, `HighlighterIcon`,
+  `EraserIcon`, `LassoIcon`, `UndoIcon`, `RedoIcon`, `ChevronLeftIcon`,
+  `ChevronRightIcon`, `OverflowIcon` — same own-paths approach as Step D.
+- `src/canvas/Toolbar.tsx` rewritten: Pen/Highlighter/Eraser/Lasso are now
+  icon buttons (was text). Undo/Redo are icon buttons. The always-visible
+  "Scratch-out: On/Off" button moved into a new "⋮" overflow menu (opened
+  via `OverflowIcon`), alongside new "Insert page after this one",
+  "Duplicate page", and "Delete page" — decluttering the main bar to
+  match the reference's single compact row. A page counter
+  (`"{index+1}/{count}"`) with ‹/› chevron buttons sits between Redo and
+  the overflow button, disabled at the first/last page.
+- `src/storage/db.ts`: new `insertPageAfter(afterPageId, title?)` —
+  creates a page at `current.order + 1` and shifts every later page's
+  `order` up by one first, in a transaction (so a mid-shift crash can't
+  leave two pages sharing an order). Inherits the notebook's defaults the
+  same way `createPage` does.
+- `src/library/PageScreen.tsx`: now takes `notebookId` and
+  `onNavigatePage`, queries sibling pages (ordered) to compute the
+  current page's index/count, and implements prev/next navigation plus
+  Duplicate/Insert-after/Delete (delete asks to confirm, same as the
+  existing per-page Delete in `NotebookScreen.tsx`, then goes back to the
+  notebook).
+- `src/library/LibraryApp.tsx`: the `'page'` route now carries
+  `notebookId` through to `PageScreen` and provides `onNavigatePage` (re-
+  routes to a sibling page id within the same notebook, same route
+  shape).
+- Verified in the desktop browser preview end to end: icon toolbar
+  renders correctly; opened the overflow menu and used "Insert page
+  after this one" (page count went 1/1 → 2/2, landed on the new page);
+  used the ‹ chevron to go back to page 1/2, with Previous correctly
+  disabled at the first page. **Not yet tablet-tested** — icon tap
+  targets and the page-counter chevrons especially need a real-hand
+  check for comfortable spacing.
+
 ### Still open from Fahed's "match the design" request
 
-- **Editor toolbar as icon-only** (pen/highlighter/eraser/lasso/shapes as
-  icons instead of text buttons, size swatches shown as scaled dots like
-  the reference screenshot, a page counter "`1/1`", and the ⋮ overflow
-  menu with bookmarks/export/favourite/tags/insert image/page settings/
-  zoom presets/duplicate-delete page/auto-shapes/preferred-pens-bar/
-  extra-smooth edges/fullscreen/write-with-finger/general settings) — a
-  bigger change than the library screen since it touches the canvas
-  interaction code directly; several of those menu items are features we
-  don't have yet (bookmarks, export, favourites, tags, shapes) so they'd
-  need to be either built for real or left out rather than added as
-  dead menu entries.
 - **Real page-content thumbnails** for notebook/folder cards (currently a
   placeholder page icon) — needs rendering a page's ink to a small
   cached image on save, which is new capability, not just styling.
