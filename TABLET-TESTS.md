@@ -51,6 +51,15 @@ to report — write down which line it was.
     (already selected), then Matrix.
     - **Expect**: result "-2" with "verified" in green. Try the Inverse
       and Eigenvalues buttons too with the same numbers.
+13. Tap **Series**, type `exp(x)`, leave About/Order as 0/5, tap Series.
+    - **Expect**: 5 steps, then a boxed result
+      `x^5/120 + x^4/24 + x^3/6 + x^2/2 + x + 1`, plus a note about the
+      convergence ratio.
+14. Tap **ODE**, type `y'' + y`, tap ODE.
+    - **Expect**: result `y(x) = C1*sin(x) + C2*cos(x)` with "verified"
+      in green.
+15. Tap **Laplace**, type `exp(-t)`, set Variable to `t`, tap Laplace.
+    - **Expect**: result `1/(s + 1)` with "verified" in green.
 
 ## Writing feel (from earlier this session — re-check if you haven't yet)
 

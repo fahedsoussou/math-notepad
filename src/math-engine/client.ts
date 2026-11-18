@@ -123,6 +123,18 @@ class MathEngineClient {
   matrixSteps(matrix: number[][], operation: 'determinant' | 'inverse' | 'eigenvalues', timeoutMs?: number) {
     return this.call<MatrixResult>('matrix_steps', [matrix, operation], timeoutMs)
   }
+  /** Phase 6. Taylor series of expr about x=about, up to the given order. */
+  series(expr: string, varName = 'x', about = 0, order = 5, notation?: NotationSettings, timeoutMs?: number) {
+    return this.call<SeriesResult>('series_steps', [expr, varName, about, order, notation], timeoutMs)
+  }
+  /** Phase 6. Solve an ODE written with y'/y'' shorthand. */
+  solveOde(equation: string, funcName = 'y', varName = 'x', notation?: NotationSettings, timeoutMs?: number) {
+    return this.call<OdeResult>('ode_solve', [equation, funcName, varName, notation], timeoutMs)
+  }
+  /** Phase 6. Laplace transform of expr(t) -> F(s). */
+  laplaceTransform(expr: string, varName = 't', sName = 's', notation?: NotationSettings, timeoutMs?: number) {
+    return this.call<LaplaceResult>('laplace_transform_steps', [expr, varName, sName, notation], timeoutMs)
+  }
 }
 
 export interface ExprFmt {
@@ -193,6 +205,28 @@ export interface MatrixResult {
   result?: ExprFmt
   eigenvalues?: { value: ExprFmt; multiplicity: number; verified: boolean }[]
   verified?: boolean
+}
+export interface SeriesResult {
+  ok: boolean
+  error?: string
+  steps?: { text: string }[]
+  polynomial?: ExprFmt
+  convergence?: { ratio_last_two_terms: number; note: string } | null
+  verified?: boolean | null
+}
+export interface OdeResult {
+  ok: boolean
+  error?: string
+  steps?: { text: string }[]
+  result?: ExprFmt
+  verified?: boolean
+}
+export interface LaplaceResult {
+  ok: boolean
+  error?: string
+  steps?: { text: string }[]
+  result?: ExprFmt
+  verified?: boolean | null
 }
 
 export const mathEngine = new MathEngineClient()

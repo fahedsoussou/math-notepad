@@ -270,35 +270,40 @@ has to exist first.
   added to `MathPanel.tsx` — both verified live in the browser preview
   (dataset `2,4,4,4,5,5,7,9` → correct mean/median/variance/std, all
   green "verified"; `[[1,2],[3,4]]` determinant → -2, verified).
-  Series/ODE/Laplace UI still pending (see "next up").
+  **Update**: Series, ODE, and Laplace transform modes are now also
+  wired in (same session, just after this was first written) — all 5
+  Phase 6 functions have real UI. Series shows the term-by-term
+  expansion + the convergence-ratio note; ODE has a function-name field
+  and accepts `y''`/`y'` shorthand with a hint shown inline; Laplace
+  reuses the generic expr+variable inputs. A generic "verified" badge
+  was also added under the final boxed result for diff/integrate/ode/
+  laplace (previously computed but never shown in the UI for those four).
+  Verified live: Maclaurin series of `exp(x)` gave the correct
+  `1 + x + x²/2 + x³/6 + x⁴/24 + x⁵/120`; `y'' + y` gave
+  `y(x) = C₁sin(x) + C₂cos(x)`, both verified in green. Phase 6 UI is
+  now fully done — all 5 functions have working, tested UI.
 
 ## In progress / next up, in order
 
-1. Statistics and Matrix (determinant/inverse/eigenvalues) are now wired
-   into `MathPanel.tsx` too — see "Phase 6 UI" below. **Still not wired**:
-   series (needs expansion-point + order inputs), ODE (equation box +
-   explaining the `y'` shorthand), Laplace (expr box) — picked Stats/
-   Matrix first since their inputs are the simplest (a number list, a
-   small grid) of the five.
-2. Phase 4: PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused
+1. Phase 4: PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused
    yet).
-3. "Check my work" mode: user writes their solution line by line, app
+2. "Check my work" mode: user writes their solution line by line, app
    flags the first wrong line. Plan: a new input mode where each line is
    parsed and checked against the previous line via
    `verify_equal_numeric`-style substitution (is line N+1 actually implied
    by/equal to line N under the operation being performed) — needs some
    design thought on how to detect *which* operation the user intended
    per line (that's the hard part) before implementing.
-4. Phase 3 step-by-step: the engine already produces steps for solve/
+3. Phase 3 step-by-step: the engine already produces steps for solve/
    diff/integrate/series/etc.; this phase is mostly about *more* step
    coverage (more integration techniques — substitution, by parts — more
    equation types) and a nicer in-canvas UI than the current modal panel.
-5. Phase 5 extras (basic series RLC + unit conversion already done):
+4. Phase 5 extras (basic series RLC + unit conversion already done):
    phasor addition/subtraction UI, parallel impedance, AC power
    calculations — only if these turn out to matter in practice.
-6. Phase 2: offline recognition (ONNX + CoMER model, MathWriting dataset) —
+5. Phase 2: offline recognition (ONNX + CoMER model, MathWriting dataset) —
    deliberately last per Fahed's reordering. Nothing started yet.
-7. Phase 7 polish: full offline math (self-host Pyodide's wasm/data
+6. Phase 7 polish: full offline math (self-host Pyodide's wasm/data
    instead of the CDN — real work, not a toggle), code-split the >500KB
    JS chunk, real page-content thumbnails, remaining Tratto-comparison
    items (tags/search/favourites, consistent restyle of

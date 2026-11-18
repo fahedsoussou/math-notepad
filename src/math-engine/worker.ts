@@ -51,6 +51,9 @@ export interface EngineRequest {
     | 'convert_units'
     | 'stats_summary'
     | 'matrix_steps'
+    | 'series_steps'
+    | 'ode_solve'
+    | 'laplace_transform_steps'
   args: unknown[]
 }
 

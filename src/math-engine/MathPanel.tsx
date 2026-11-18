@@ -23,7 +23,7 @@ interface Props {
   onClose: () => void
 }
 
-type Mode = 'solve' | 'diff' | 'integrate' | 'simplify' | 'plot' | 'impedance' | 'stats' | 'matrix'
+type Mode = 'solve' | 'diff' | 'integrate' | 'simplify' | 'plot' | 'impedance' | 'stats' | 'matrix' | 'series' | 'ode' | 'laplace'
 
 const MODE_LABELS: Record<Mode, string> = {
   solve: 'Solve',
@@ -34,6 +34,9 @@ const MODE_LABELS: Record<Mode, string> = {
   impedance: 'Impedance',
   stats: 'Statistics',
   matrix: 'Matrix',
+  series: 'Series',
+  ode: 'ODE',
+  laplace: 'Laplace',
 }
 
 type MatrixOp = 'determinant' | 'inverse' | 'eigenvalues'
@@ -69,6 +72,7 @@ export default function MathPanel({ onClose }: Props) {
   const [steps, setSteps] = useState<EngineStep[] | null>(null)
   const [solutions, setSolutions] = useState<{ solution: { latex: string; text: string }; verified: boolean | null }[] | null>(null)
   const [finalResult, setFinalResult] = useState<{ latex: string; text: string } | null>(null)
+  const [finalVerified, setFinalVerified] = useState<boolean | null>(null)
   const [engineReady, setEngineReady] = useState(false)
   const [engineError, setEngineError] = useState<string | null>(null)
   const [plotData, setPlotData] = useState<{ xs: number[]; ys: number[] } | null>(null)
@@ -93,6 +97,13 @@ export default function MathPanel({ onClose }: Props) {
     verified: boolean
     eigenvalues?: { value: { text: string }; multiplicity: number; verified: boolean }[]
   } | null>(null)
+  const [seriesAbout, setSeriesAbout] = useState('0')
+  const [seriesOrder, setSeriesOrder] = useState('5')
+  const [seriesResult, setSeriesResult] = useState<{
+    verified: boolean | null
+    convergenceRatio: number | null
+  } | null>(null)
+  const [odeFuncName, setOdeFuncName] = useState('y')
 
   const availableModes = (Object.keys(MODE_LABELS) as Mode[]).filter((m) => m !== 'impedance' || settings.electricalMode)
 
@@ -150,12 +161,38 @@ export default function MathPanel({ onClose }: Props) {
     setSteps(null)
     setSolutions(null)
     setFinalResult(null)
+    setFinalVerified(null)
     setPlotData(null)
     setImpedanceResult(null)
     setStatsResult(null)
     setMatrixResult(null)
+    setSeriesResult(null)
     try {
-      if (mode === 'stats') {
+      if (mode === 'series') {
+        const r = await mathEngine.series(expr, varName, Number(seriesAbout) || 0, Math.max(1, Math.min(12, Number(seriesOrder) || 5)), notation)
+        if (!r.ok || !r.polynomial) setError(r.error ?? 'Could not expand this.')
+        else {
+          setSteps(r.steps ?? [])
+          setFinalResult(r.polynomial)
+          setSeriesResult({ verified: r.verified ?? null, convergenceRatio: r.convergence?.ratio_last_two_terms ?? null })
+        }
+      } else if (mode === 'ode') {
+        const r = await mathEngine.solveOde(expr, odeFuncName, varName, notation)
+        if (!r.ok || !r.result) setError(r.error ?? "Could not solve this. Try writing derivatives as y' or y''.")
+        else {
+          setSteps(r.steps ?? [])
+          setFinalResult(r.result)
+          setFinalVerified(r.verified ?? null)
+        }
+      } else if (mode === 'laplace') {
+        const r = await mathEngine.laplaceTransform(expr, varName, 's', notation)
+        if (!r.ok || !r.result) setError(r.error ?? 'Could not transform this.')
+        else {
+          setSteps(r.steps ?? [])
+          setFinalResult(r.result)
+          setFinalVerified(r.verified ?? null)
+        }
+      } else if (mode === 'stats') {
         const data = statsInput
           .split(',')
           .map((s) => Number(s.trim()))
@@ -219,6 +256,7 @@ export default function MathPanel({ onClose }: Props) {
         else {
           setSteps(r.steps ?? [])
           setFinalResult(r.result ?? null)
+          setFinalVerified(r.verified ?? null)
         }
       } else if (mode === 'integrate') {
         const r = await mathEngine.integrate(expr, varName, notation)
@@ -226,6 +264,7 @@ export default function MathPanel({ onClose }: Props) {
         else {
           setSteps(r.steps ?? [])
           setFinalResult(r.result ?? null)
+          setFinalVerified(r.verified ?? null)
         }
       } else {
         const r = await mathEngine.simplify(expr, notation)
@@ -376,6 +415,41 @@ export default function MathPanel({ onClose }: Props) {
                 />
               </label>
             )}
+
+            {mode === 'series' && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <label style={{ fontSize: 13, color: '#4b5563', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  About x =
+                  <input
+                    value={seriesAbout}
+                    onChange={(e) => setSeriesAbout(e.target.value)}
+                    style={{ width: 48, padding: '4px 8px', borderRadius: 6, border: '1px solid #d7dde5', background: 'white', color: '#1e1e2e' }}
+                  />
+                </label>
+                <label style={{ fontSize: 13, color: '#4b5563', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Order
+                  <input
+                    value={seriesOrder}
+                    onChange={(e) => setSeriesOrder(e.target.value)}
+                    style={{ width: 48, padding: '4px 8px', borderRadius: 6, border: '1px solid #d7dde5', background: 'white', color: '#1e1e2e' }}
+                  />
+                </label>
+              </div>
+            )}
+
+            {mode === 'ode' && (
+              <div style={{ fontSize: 13, color: '#4b5563', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Function name
+                  <input
+                    value={odeFuncName}
+                    onChange={(e) => setOdeFuncName(e.target.value || 'y')}
+                    style={{ width: 48, padding: '4px 8px', borderRadius: 6, border: '1px solid #d7dde5', background: 'white', color: '#1e1e2e' }}
+                  />
+                </label>
+                <div>Write derivatives with primes, e.g. {odeFuncName}'' + {odeFuncName} = 0</div>
+              </div>
+            )}
           </>
         )}
 
@@ -478,6 +552,19 @@ export default function MathPanel({ onClose }: Props) {
         {finalResult && (
           <div style={{ fontSize: 18, padding: 10, borderRadius: 8, background: '#eef3fb' }}>
             <Katex latex={finalResult.latex} text={finalResult.text} />
+            {finalVerified !== null && (
+              <div style={{ fontSize: 12, marginTop: 4, color: finalVerified ? '#16a34a' : '#9b1c1c' }}>
+                {finalVerified ? 'verified' : 'NOT verified — check this'}
+              </div>
+            )}
+          </div>
+        )}
+
+        {seriesResult && (
+          <div style={{ fontSize: 13, color: '#4b5563' }}>
+            {seriesResult.convergenceRatio !== null && (
+              <div>Ratio of the last two computed terms: {seriesResult.convergenceRatio.toFixed(4)} (below 1 suggests convergence near this point — based only on the terms shown above, not a general proof)</div>
+            )}
           </div>
         )}
 
