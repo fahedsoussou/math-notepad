@@ -14,22 +14,25 @@ from sympy.core.function import AppliedUndef
 import random
 import traceback
 
-TRANSFORMATIONS = sympy.parsing.sympy_parser.standard_transformations + (
+TRANSFORMATIONS_IMPLICIT = sympy.parsing.sympy_parser.standard_transformations + (
     sympy.parsing.sympy_parser.implicit_multiplication_application,
+    sympy.parsing.sympy_parser.convert_xor,
+)
+TRANSFORMATIONS_EXPLICIT = sympy.parsing.sympy_parser.standard_transformations + (
     sympy.parsing.sympy_parser.convert_xor,
 )
 
 def _parse(expr_str, notation=None, var_name='x'):
     """Parse user text into a SymPy expression, honouring notation settings.
-    notation: optional dict with keys 'imaginary' ('i'|'j') and
-    'euler_as_variable' (bool) — see NOTATION settings in Settings screen.
-    Crucially, this must produce the *same* Symbol object (same name AND
-    same assumptions) that every other function builds via
-    symbols(var_name, real=True) — SymPy treats Symbol('x') and
-    Symbol('x', real=True) as different symbols entirely, so without this
-    an expression parsed from text would silently never match var in
-    expr.has(var)/is_polynomial(var)/etc., making every rule think the
-    variable isn't present at all."""
+    notation: optional dict with keys 'imaginary' ('i'|'j'),
+    'euler_as_variable' (bool), and 'implicit_multiplication' (bool) — see
+    NOTATION settings in Settings screen. Crucially, this must produce the
+    *same* Symbol object (same name AND same assumptions) that every other
+    function builds via symbols(var_name, real=True) — SymPy treats
+    Symbol('x') and Symbol('x', real=True) as different symbols entirely,
+    so without this an expression parsed from text would silently never
+    match var in expr.has(var)/is_polynomial(var)/etc., making every rule
+    think the variable isn't present at all."""
     s = expr_str.strip()
     local_dict = {var_name: symbols(var_name, real=True)}
     if notation and notation.get('imaginary') == 'j':
@@ -37,7 +40,14 @@ def _parse(expr_str, notation=None, var_name='x'):
     if notation and notation.get('euler_as_variable'):
         # 'e' stays a free symbol instead of Euler's number.
         local_dict['e'] = symbols('e', real=True)
-    return sympy.parsing.sympy_parser.parse_expr(s, local_dict=local_dict, transformations=TRANSFORMATIONS)
+    else:
+        # sympy's parser does NOT recognise bare 'e' as Euler's number on
+        # its own — without this it silently becomes a generic Symbol('e'),
+        # which is the whole default-notation setting's point, so it must
+        # be explicit here.
+        local_dict['e'] = sympy.E
+    transformations = TRANSFORMATIONS_EXPLICIT if (notation and notation.get('implicit_multiplication') is False) else TRANSFORMATIONS_IMPLICIT
+    return sympy.parsing.sympy_parser.parse_expr(s, local_dict=local_dict, transformations=transformations)
 
 def _safe(fn):
     try:

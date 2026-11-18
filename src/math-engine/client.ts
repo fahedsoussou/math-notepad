@@ -23,6 +23,7 @@ export class EngineCancelledError extends Error {
 export interface NotationSettings {
   imaginary?: 'i' | 'j'
   euler_as_variable?: boolean
+  implicit_multiplication?: boolean
 }
 
 const DEFAULT_TIMEOUT_MS = 8000

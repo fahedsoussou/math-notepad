@@ -66,6 +66,7 @@ export default function MathPanel({ onClose }: Props) {
   const notation = {
     imaginary: settings.imaginaryUnit ?? 'i',
     euler_as_variable: settings.eulerAsVariable ?? false,
+    implicit_multiplication: settings.implicitMultiplication ?? true,
   }
 
   const run = async () => {

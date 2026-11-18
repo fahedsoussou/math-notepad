@@ -132,26 +132,43 @@ has to exist first.
 - `npm test` runs it (`vitest run`). Takes ~4–5s once Pyodide's wheels are
   cached in `node_modules` (first run downloads them from jsdelivr).
 
-### Notation settings (schema only so far)
+### Notation settings — DONE, tested
 - `src/storage/db.ts`: `AppSettings` gained `imaginaryUnit` ('i'|'j',
   default 'i'), `eulerAsVariable` (default false — 'e' means Euler's
   number unless this is on), `implicitMultiplication` (default true),
-  `electricalMode` (default false, for Phase 5's 'j' default). Additive,
+  `electricalMode` (default false; toggling it on also sets the
+  imaginary unit to 'j', toggling it off sets it back to 'i'). Additive,
   same pattern as every other settings field — old settings rows get the
   defaults when read.
-- The math engine's `_parse()` already honours `imaginary`/
-  `euler_as_variable` (see `notation` param throughout `pythonSource.ts`).
-- **Not yet wired into the Settings screen UI** — see "Needs Fahed" below,
-  not because it needs a decision, just not built yet; next thing to do.
+- `SettingsScreen.tsx` gained a "Math notation" section with all four as
+  segmented controls, wired straight to `updateSettings`.
+- `pythonSource.ts`'s `_parse()` honours all of these: `imaginary`
+  ('j'→'I' text substitution before parsing), `euler_as_variable` (maps
+  bare `e` to a real free symbol instead of `sympy.E`), and
+  `implicit_multiplication` (swaps the SymPy parser's transformation set
+  so "2x" either parses as `2*x` or is a parse error, per the setting).
+- **Bug found and fixed**: the exact same JsProxy/dict bug from the
+  browser worker (see bug #6 above) was *also* present in
+  `tests/pyodideHarness.ts` — it never got the `toPy()` conversion fix,
+  so every test that passed a `notation` object was silently going to
+  fail until now. Fixed identically. **Lesson: a fix made in one Pyodide
+  call site doesn't automatically apply to the other — there are now two
+  places (`worker.ts` for the browser, `pyodideHarness.ts` for tests)
+  that each need this conversion; if a third one is ever added, remember
+  this.**
+- **Second bug found and fixed**: `_parse()` never actually mapped bare
+  `e` to `sympy.E` in the *default* case (only in the `euler_as_variable`
+  branch) — SymPy's parser does not recognise `e` as Euler's number on
+  its own, so without an explicit `local_dict['e'] = sympy.E`, the
+  "default" notation setting was silently broken (e` always behaved like
+  a plain variable, the opposite of what unchecked-by-default was
+  supposed to mean). Now explicit in both branches.
+- `tests/math-engine.notation.test.ts`: 4 tests covering all four
+  settings, all passing (67 tests total now).
 
 ## In progress / next up, in order
 
-1. Add a Notation section to `SettingsScreen.tsx` (i/j toggle, e toggle,
-   implicit-multiplication toggle) — the schema and engine already support
-   it, just needs the UI.
-2. Wire `electricalMode` to default the imaginary unit to 'j' when it's on
-   (Phase 5 will build the mode itself; this one default can go in now).
-3. "Check my work" mode: user writes their solution line by line, app
+1. "Check my work" mode: user writes their solution line by line, app
    flags the first wrong line. Plan: a new input mode where each line is
    parsed and checked against the previous line via
    `verify_equal_numeric`-style substitution (is line N+1 actually implied

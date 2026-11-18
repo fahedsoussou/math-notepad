@@ -24,7 +24,11 @@ export function getPyodide(): Promise<PyodideInterface> {
 export async function callEngine<T = any>(fnName: string, ...args: unknown[]): Promise<T> {
   const pyodide = await getPyodide()
   const fn = pyodide.globals.get(fnName)
-  const result = fn(...args)
+  // Same conversion as worker.ts: a plain JS object crosses as a JsProxy
+  // (no dict methods like .get()) unless explicitly converted — the
+  // Python side expects a real dict.
+  const pyArgs = args.map((a) => (a && typeof a === 'object' ? pyodide.toPy(a) : a))
+  const result = fn(...pyArgs)
   const js = result.toJs({ dict_converter: Object.fromEntries })
   result.destroy()
   return js as T

@@ -179,6 +179,71 @@ export default function SettingsScreen({ onBack }: Props) {
         </div>
 
         <div style={sectionStyle}>
+          <div style={labelStyle}>Math notation</div>
+          <div style={helpStyle}>
+            How the math engine reads what you type/write. "e" is Euler's number (2.718…)
+            unless you turn it into a plain variable. The imaginary unit defaults to "j" in
+            Electrical mode, matching how electrical engineers write it.
+          </div>
+          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
+            <button
+              style={segmentButtonStyle((settings.imaginaryUnit ?? 'i') === 'i')}
+              onClick={() => updateSettings({ imaginaryUnit: 'i' })}
+            >
+              i (imaginary)
+            </button>
+            <button
+              style={segmentButtonStyle(settings.imaginaryUnit === 'j')}
+              onClick={() => updateSettings({ imaginaryUnit: 'j' })}
+            >
+              j (imaginary)
+            </button>
+          </div>
+          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
+            <button
+              style={segmentButtonStyle(!settings.eulerAsVariable)}
+              onClick={() => updateSettings({ eulerAsVariable: false })}
+            >
+              e = Euler's number
+            </button>
+            <button
+              style={segmentButtonStyle(!!settings.eulerAsVariable)}
+              onClick={() => updateSettings({ eulerAsVariable: true })}
+            >
+              e = plain variable
+            </button>
+          </div>
+          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
+            <button
+              style={segmentButtonStyle(settings.implicitMultiplication ?? true)}
+              onClick={() => updateSettings({ implicitMultiplication: true })}
+            >
+              "2x" means 2*x
+            </button>
+            <button
+              style={segmentButtonStyle(settings.implicitMultiplication === false)}
+              onClick={() => updateSettings({ implicitMultiplication: false })}
+            >
+              Require "2*x"
+            </button>
+          </div>
+          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden' }}>
+            <button
+              style={segmentButtonStyle(!settings.electricalMode)}
+              onClick={() => updateSettings({ electricalMode: false, imaginaryUnit: 'i' })}
+            >
+              Electrical mode: Off
+            </button>
+            <button
+              style={segmentButtonStyle(!!settings.electricalMode)}
+              onClick={() => updateSettings({ electricalMode: true, imaginaryUnit: 'j' })}
+            >
+              Electrical mode: On
+            </button>
+          </div>
+        </div>
+
+        <div style={sectionStyle}>
           <div style={labelStyle}>Dark mode</div>
           <div style={helpStyle}>
             Saved for later — the app doesn't change its theme yet, this just remembers your
