@@ -700,14 +700,79 @@ texture/feel variants to the `'pen'` tool.
   pressure curve), so the *feel* of each type needs confirming on the
   actual tablet before trusting it.
 
-### Still open from Fahed's broader "take the UX/UI" request
+### Step D — Library (Home) screen redesign to match Tratto's look: DONE ✅ (built, not yet tablet-tested)
 
-- Only the pen-type piece above has been built so far. The rest of
-  "library and pages" styling (screen layouts, card/thumbnail look,
-  library organisation patterns like Tratto's cover thumbnails or
-  favourites-pinned-to-top from the earlier comparison table) hasn't been
-  touched yet — pick the next concrete piece the same way pen types was
-  picked, one small step at a time, rather than a single big reskin.
+Fahed sent 3 screenshots of Tratto's actual UI (library grid, "New
+notebook" dialog, editor toolbar/menu) and asked to match "almost
+everything", in English, reusing what's good. This is being done as
+several steps (library screen first; the New notebook dialog and editor
+toolbar are separate, still-open steps below) rather than one big reskin,
+per Rule 3 — each gets tablet-tested on its own before the next starts.
+
+- New `src/library/icons.tsx`: a small set of **original** inline SVG
+  icons (`FolderIcon`, `SettingsIcon`, `TrashIcon`, `PageIcon`) — own
+  paths, not copied from Tratto (Material icons, not even Tratto's own
+  asset) or any icon library, used to move the chrome from text buttons
+  toward icon-first, matching the reference screenshots' style.
+  `FolderIcon` renders the two-tone folder-with-tab silhouette from the
+  library grid; the other three are simple line icons.
+- `src/library/styles.ts`: added `iconCircleButton` (round 40px icon
+  button), `badge` (small red count badge, used for the Trash count),
+  `floatingActions` (fixed bottom-right stack), and `pageCard`/
+  `pageCardThumb`/`pageCardBody` (a taller, page-shaped card replacing
+  the old plain text card for notebook entries).
+- `src/library/HomeScreen.tsx` rewritten:
+  - Header is now "Your Notebooks" (matching Tratto's own title pattern,
+    not the app's install name — that's still "Math Notepad" in the PWA
+    manifest/home-screen icon) + two round icon buttons (Trash with a
+    red count badge, Settings), replacing the old text buttons.
+  - Folders render with `FolderIcon` (coloured per folder) + a real
+    notebook count (new `notebookCounts` query, grouped by `folderId`),
+    replacing the old plain dot + name.
+  - Recent notebooks render as `pageCard`s (a page-icon placeholder
+    "thumbnail" + title + date) instead of plain text cards — **not**
+    real page-content thumbnails yet (that needs rendering a page's ink
+    to a small cached image, a separate, bigger piece — noted as future
+    work below, not done here).
+  - "+ Folder" and "+ Quick notebook" became "+ New folder" / "+ New
+    notebook", moved into a `floatingActions` bottom-right stack
+    (matching the reference screenshot's bottom-right button placement),
+    instead of one being in the header and the other a plain link at the
+    bottom of the page.
+- Verified in the desktop browser preview: icon buttons work (Trash
+  navigates correctly, no stray badge when trash is empty), folder cards
+  show the right icon colour and notebook count, floating buttons create
+  a folder/notebook correctly. **Not yet tablet-tested** — icon tap
+  targets (40px circles) need confirming they're comfortable with the S
+  Pen/finger on the real screen.
+
+### Still open from Fahed's "match the design" request
+
+Picked off one piece at a time, each needing its own tablet test before
+the next starts:
+- **New notebook dialog** (format A4 portrait/landscape, pattern incl.
+  Cornell, paper colour swatches + a custom picker, line spacing, margin
+  line toggle) — currently still a plain `window.prompt()` for the name
+  only. Next logical step.
+- **Editor toolbar as icon-only** (pen/highlighter/eraser/lasso/shapes as
+  icons instead of text buttons, size swatches shown as scaled dots like
+  the reference screenshot, a page counter "`1/1`", and the ⋮ overflow
+  menu with bookmarks/export/favourite/tags/insert image/page settings/
+  zoom presets/duplicate-delete page/auto-shapes/preferred-pens-bar/
+  extra-smooth edges/fullscreen/write-with-finger/general settings) — a
+  bigger change than the library screen since it touches the canvas
+  interaction code directly; several of those menu items are features we
+  don't have yet (bookmarks, export, favourites, tags, shapes) so they'd
+  need to be either built for real or left out rather than added as
+  dead menu entries.
+- **Real page-content thumbnails** for notebook/folder cards (currently a
+  placeholder page icon) — needs rendering a page's ink to a small
+  cached image on save, which is new capability, not just styling.
+- Folder/notebook screens (`FolderScreen.tsx`, `NotebookScreen.tsx`,
+  `TrashScreen.tsx`) still use the pre-redesign plain-card look and
+  text buttons — not updated in this step, so the app is visually
+  inconsistent between Home and those screens until they get the same
+  pass.
 
 ## What Phase 1 will need
 

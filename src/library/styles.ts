@@ -46,6 +46,79 @@ export const headerTitle: CSSProperties = {
   color: '#1e1e2e',
 }
 
+export const iconCircleButton: CSSProperties = {
+  border: 'none',
+  background: '#e6eaf0',
+  color: '#1e1e2e',
+  borderRadius: '50%',
+  width: 40,
+  height: 40,
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  position: 'relative',
+}
+
+export const badge: CSSProperties = {
+  position: 'absolute',
+  top: -2,
+  right: -2,
+  background: '#dc2626',
+  color: 'white',
+  borderRadius: '50%',
+  minWidth: 16,
+  height: 16,
+  fontSize: 10,
+  fontWeight: 700,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '0 3px',
+}
+
+export const floatingActions: CSSProperties = {
+  position: 'fixed',
+  right: 20,
+  bottom: 20,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-end',
+  gap: 10,
+  zIndex: 15,
+}
+
+export const pageCard: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  padding: 0,
+  borderRadius: 12,
+  background: 'white',
+  color: '#1e1e2e',
+  border: '1px solid #d7dde5',
+  cursor: 'pointer',
+  textAlign: 'left',
+  overflow: 'hidden',
+}
+
+export const pageCardThumb: CSSProperties = {
+  aspectRatio: '3 / 4',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#a8b3c2',
+  borderBottom: '1px solid #e6eaf0',
+}
+
+export const pageCardBody: CSSProperties = {
+  padding: '8px 10px 10px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+}
+
 export const iconButton: CSSProperties = {
   border: 'none',
   background: '#e6eaf0',

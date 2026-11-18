@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, createFolder, createNotebook } from '../storage/db'
 import * as s from './styles'
 import NewFolderDialog from './NewFolderDialog'
+import { FolderIcon, PageIcon, SettingsIcon, TrashIcon } from './icons'
 
 interface Props {
   onOpenFolder: (folderId: string) => void
@@ -23,6 +24,12 @@ export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, 
         .then((list) => list.sort((a, b) => (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0)).slice(0, 8)),
     [],
   )
+  const notebookCounts = useLiveQuery(async () => {
+    const notebooks = await db.notebooks.filter((n) => n.deletedAt === null).toArray()
+    const counts: Record<string, number> = {}
+    for (const n of notebooks) counts[n.folderId] = (counts[n.folderId] ?? 0) + 1
+    return counts
+  }, [])
   const trashCount = useLiveQuery(async () => {
     const [f, n, p] = await Promise.all([
       db.folders.filter((x) => x.deletedAt !== null).count(),
@@ -54,27 +61,30 @@ export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, 
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <div style={s.headerTitle}>Math Notepad</div>
-        <button style={s.iconButton} onClick={onOpenSettings}>
-          Settings
+        <div style={s.headerTitle}>Your Notebooks</div>
+        <button style={s.iconCircleButton} onClick={onOpenTrash} aria-label="Trash" title="Trash">
+          <TrashIcon />
+          {trashCount ? <span style={s.badge}>{trashCount}</span> : null}
         </button>
-        <button style={s.iconButton} onClick={onOpenTrash}>
-          Trash{trashCount ? ` (${trashCount})` : ''}
-        </button>
-        <button style={s.primaryButton} onClick={() => setShowNewFolder(true)}>
-          + Folder
+        <button style={s.iconCircleButton} onClick={onOpenSettings} aria-label="Settings" title="Settings">
+          <SettingsIcon />
         </button>
       </div>
 
       {recentNotebooks && recentNotebooks.length > 0 && (
         <>
-          <div style={s.sectionTitle}>Recent notebooks</div>
+          <div style={s.sectionTitle}>Recent</div>
           <div style={s.grid}>
             {recentNotebooks.map((n) => (
-              <button key={n.id} style={s.card} onClick={() => onOpenNotebook(n.id, n.folderId)}>
-                <div style={{ fontWeight: 600 }}>{n.name}</div>
-                <div style={{ fontSize: 12, color: '#71717a' }}>
-                  Opened {new Date(n.lastOpenedAt ?? 0).toLocaleDateString()}
+              <button key={n.id} style={s.pageCard} onClick={() => onOpenNotebook(n.id, n.folderId)}>
+                <div style={s.pageCardThumb}>
+                  <PageIcon size={28} />
+                </div>
+                <div style={s.pageCardBody}>
+                  <div style={{ fontWeight: 600 }}>{n.name}</div>
+                  <div style={{ fontSize: 12, color: '#71717a' }}>
+                    Opened {new Date(n.lastOpenedAt ?? 0).toLocaleDateString()}
+                  </div>
                 </div>
               </button>
             ))}
@@ -84,22 +94,31 @@ export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, 
 
       <div style={s.sectionTitle}>Folders</div>
       {folders && folders.length === 0 && (
-        <div style={s.emptyState}>No folders yet. Tap "+ Folder" to make one, or just start a notebook below.</div>
+        <div style={s.emptyState}>No folders yet. Use "+ New folder" below to make one.</div>
       )}
       <div style={s.grid}>
-        {folders?.map((f) => (
-          <button key={f.id} style={s.card} onClick={() => onOpenFolder(f.id)}>
-            <div
-              style={{ width: 20, height: 20, borderRadius: '50%', background: f.color, marginBottom: 4 }}
-            />
-            <div style={{ fontWeight: 600 }}>{f.name}</div>
-          </button>
-        ))}
+        {folders?.map((f) => {
+          const count = notebookCounts?.[f.id] ?? 0
+          return (
+            <button key={f.id} style={{ ...s.card, alignItems: 'center' }} onClick={() => onOpenFolder(f.id)}>
+              <FolderIcon color={f.color} size={56} />
+              <div style={{ fontWeight: 600 }}>{f.name}</div>
+              <div style={{ fontSize: 12, color: '#71717a' }}>
+                {count} notebook{count === 1 ? '' : 's'}
+              </div>
+            </button>
+          )
+        })}
       </div>
 
-      <div style={{ padding: 16 }}>
-        <button style={s.iconButton} onClick={handleNewNotebookNoFolder}>
-          + Quick notebook
+      <div style={{ height: 96 }} />
+
+      <div style={s.floatingActions}>
+        <button style={s.iconButton} onClick={() => setShowNewFolder(true)}>
+          + New folder
+        </button>
+        <button style={s.primaryButton} onClick={handleNewNotebookNoFolder}>
+          + New notebook
         </button>
       </div>
 
