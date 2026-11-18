@@ -1,7 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import * as functionPlotModule from 'function-plot'
+// function-plot's CJS/ESM interop double-wraps under Vite: `import * as`
+// gives { default: { default: fn, Chart, ... } }, not { default: fn } —
+// unwrap however many `.default` layers it takes to reach an actual
+// function, rather than assuming a fixed depth.
+function unwrapDefault(mod: unknown): (opts: Record<string, unknown>) => unknown {
+  let candidate = mod
+  for (let i = 0; i < 3 && typeof candidate !== 'function'; i++) {
+    candidate = (candidate as { default?: unknown })?.default
+  }
+  return candidate as (opts: Record<string, unknown>) => unknown
+}
+const functionPlot = unwrapDefault(functionPlotModule)
 import { getSettings, DEFAULT_SETTINGS } from '../storage/db'
 import { mathEngine, EngineTimeoutError, type EngineStep } from './client'
 import { ACCENT } from '../library/styles'
@@ -10,13 +23,14 @@ interface Props {
   onClose: () => void
 }
 
-type Mode = 'solve' | 'diff' | 'integrate' | 'simplify'
+type Mode = 'solve' | 'diff' | 'integrate' | 'simplify' | 'plot'
 
 const MODE_LABELS: Record<Mode, string> = {
   solve: 'Solve',
   diff: 'Differentiate',
   integrate: 'Integrate',
   simplify: 'Simplify',
+  plot: 'Plot',
 }
 
 function Katex({ latex, text }: { latex?: string; text: string }) {
@@ -47,6 +61,31 @@ export default function MathPanel({ onClose }: Props) {
   const [finalResult, setFinalResult] = useState<{ latex: string; text: string } | null>(null)
   const [engineReady, setEngineReady] = useState(false)
   const [engineError, setEngineError] = useState<string | null>(null)
+  const [plotData, setPlotData] = useState<{ xs: number[]; ys: number[] } | null>(null)
+  const plotRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!plotData || !plotRef.current) return
+    plotRef.current.innerHTML = ''
+    try {
+      functionPlot({
+        target: plotRef.current,
+        width: 420,
+        height: 260,
+        data: [
+          {
+            points: plotData.xs.map((x, i) => [x, plotData.ys[i]]) as [number, number][],
+            fnType: 'points',
+            graphType: 'polyline',
+          },
+        ],
+      })
+    } catch {
+      // function-plot can throw on a degenerate point set (e.g. all NaN
+      // filtered out) — leave the panel showing the steps/error already
+      // set rather than crash the whole panel over a graph that can't render.
+    }
+  }, [plotData])
 
   useEffect(() => {
     let cancelled = false
@@ -77,8 +116,14 @@ export default function MathPanel({ onClose }: Props) {
     setSteps(null)
     setSolutions(null)
     setFinalResult(null)
+    setPlotData(null)
     try {
-      if (mode === 'solve') {
+      if (mode === 'plot') {
+        const r = await mathEngine.plot(expr, varName, -10, 10, 200, notation)
+        if (!r.ok || !r.xs || !r.ys) setError(r.error ?? 'Could not plot this.')
+        else if (r.xs.length === 0) setError('Nothing plottable in this range (try a different variable or range).')
+        else setPlotData({ xs: r.xs, ys: r.ys })
+      } else if (mode === 'solve') {
         const r = await mathEngine.solve(expr, varName, notation)
         if (!r.ok) setError(r.error ?? 'Could not solve this.')
         else {
@@ -178,7 +223,7 @@ export default function MathPanel({ onClose }: Props) {
           }}
         />
 
-        {(mode === 'solve' || mode === 'diff' || mode === 'integrate') && (
+        {mode !== 'simplify' && (
           <label style={{ fontSize: 13, color: '#4b5563', display: 'flex', alignItems: 'center', gap: 8 }}>
             Variable
             <input
@@ -290,6 +335,8 @@ export default function MathPanel({ onClose }: Props) {
             <Katex latex={finalResult.latex} text={finalResult.text} />
           </div>
         )}
+
+        {mode === 'plot' && <div ref={plotRef} style={{ display: plotData ? 'block' : 'none' }} />}
       </div>
     </div>
   )

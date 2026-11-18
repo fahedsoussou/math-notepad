@@ -33,6 +33,8 @@ to report — write down which line it was.
 7. Tap **Close** to dismiss the panel, then reopen it from the same page.
    - **Expect**: it should start up fast the second time (no "Starting
      the math engine…" wait) since it's already loaded for this session.
+8. Type `sin(x)`, tap the **Plot** mode button, then tap **Plot**.
+   - **Expect**: a wavy sine-curve graph appears below the buttons.
 
 ## Writing feel (from earlier this session — re-check if you haven't yet)
 

@@ -166,33 +166,52 @@ has to exist first.
 - `tests/math-engine.notation.test.ts`: 4 tests covering all four
   settings, all passing (67 tests total now).
 
+### Phase 4 (started): graphing — DONE, tested, working end-to-end
+- `MathPanel.tsx` gained a "Plot" mode: calls `mathEngine.plot()`
+  (already existed, unused until now), renders the `{xs, ys}` points via
+  `function-plot` as a polyline (feeding it pre-computed points rather
+  than its own expression string, so there's no risk of its JS-expression
+  syntax — `^` for power, etc. — disagreeing with SymPy's `**` syntax).
+- **Verified live in the browser**: plotted `sin(x)`, got a correctly
+  shaped sine curve.
+- **Bug found and fixed**: `import functionPlot from 'function-plot'`
+  resolved to an object, not a function — `function-plot`'s CJS output
+  gets **double-wrapped** under Vite's dev-server ESM interop
+  (`import * as ns` gives `{ default: { default: fn, Chart, ... } }`,
+  not `{ default: fn }`). Confirmed by inspecting the actual loaded
+  module in the browser console rather than guessing. Fixed with a small
+  `unwrapDefault()` helper that peels off `.default` layers (up to 3)
+  until it finds a function, instead of assuming a fixed wrapping depth.
+- PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused) — not
+  started yet, next piece of Phase 4.
+
 ## In progress / next up, in order
 
-1. "Check my work" mode: user writes their solution line by line, app
+1. Phase 4: PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused
+   yet).
+2. "Check my work" mode: user writes their solution line by line, app
    flags the first wrong line. Plan: a new input mode where each line is
    parsed and checked against the previous line via
    `verify_equal_numeric`-style substitution (is line N+1 actually implied
    by/equal to line N under the operation being performed) — needs some
    design thought on how to detect *which* operation the user intended
    per line (that's the hard part) before implementing.
-4. Phase 3 step-by-step: the engine already produces steps; this phase is
+3. Phase 3 step-by-step: the engine already produces steps; this phase is
    mostly about *more* step coverage (series expansion steps, more
    integration techniques — substitution, by parts — more equation types)
    and a nicer in-canvas UI than the current modal panel.
-4. Phase 4: `function-plot` (installed, unused yet) for graphing
-   `plot_points`'s output; `pdf-lib`/`pdfjs-dist` (installed, unused yet)
-   for PDF import/export.
-5. Phase 5: electrical mode — Pint for units (not installed yet), phasors,
-   `j` as default imaginary unit.
-6. Phase 6: series (with convergence-test steps), statistics (data table
+4. Phase 5: electrical mode — Pint for units (not installed yet), phasors,
+   `j` as default imaginary unit (notation setting already supports it).
+5. Phase 6: series (with convergence-test steps), statistics (data table
    tool), matrices, ODEs, Laplace transforms — each needs its own
    `_steps`-style function in `pythonSource.ts` plus test-bank coverage.
-7. Phase 2: offline recognition (ONNX + CoMER model, MathWriting dataset) —
+6. Phase 2: offline recognition (ONNX + CoMER model, MathWriting dataset) —
    deliberately last per Fahed's reordering. Nothing started yet.
-8. Phase 7 polish: full offline math (self-host Pyodide's wasm/data
-   instead of the CDN — real work, not a toggle), real page-content
-   thumbnails, remaining Tratto-comparison items (tags/search/favourites,
-   consistent restyle of FolderScreen/NotebookScreen/TrashScreen).
+7. Phase 7 polish: full offline math (self-host Pyodide's wasm/data
+   instead of the CDN — real work, not a toggle), code-split the >500KB
+   JS chunk, real page-content thumbnails, remaining Tratto-comparison
+   items (tags/search/favourites, consistent restyle of
+   FolderScreen/NotebookScreen/TrashScreen).
 
 ## Needs Fahed (genuine decisions, not things I can resolve myself)
 
