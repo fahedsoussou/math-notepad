@@ -16,14 +16,14 @@ function unwrapDefault(mod: unknown): (opts: Record<string, unknown>) => unknown
 }
 const functionPlot = unwrapDefault(functionPlotModule)
 import { getSettings, DEFAULT_SETTINGS } from '../storage/db'
-import { mathEngine, EngineTimeoutError, type EngineStep } from './client'
+import { mathEngine, EngineTimeoutError, type EngineStep, type CheckWorkResult } from './client'
 import { ACCENT } from '../library/styles'
 
 interface Props {
   onClose: () => void
 }
 
-type Mode = 'solve' | 'diff' | 'integrate' | 'simplify' | 'plot' | 'impedance' | 'stats' | 'matrix' | 'series' | 'ode' | 'laplace'
+type Mode = 'solve' | 'diff' | 'integrate' | 'simplify' | 'plot' | 'impedance' | 'stats' | 'matrix' | 'series' | 'ode' | 'laplace' | 'checkwork'
 
 const MODE_LABELS: Record<Mode, string> = {
   solve: 'Solve',
@@ -37,6 +37,7 @@ const MODE_LABELS: Record<Mode, string> = {
   series: 'Series',
   ode: 'ODE',
   laplace: 'Laplace',
+  checkwork: 'Check my work',
 }
 
 type MatrixOp = 'determinant' | 'inverse' | 'eigenvalues'
@@ -104,6 +105,8 @@ export default function MathPanel({ onClose }: Props) {
     convergenceRatio: number | null
   } | null>(null)
   const [odeFuncName, setOdeFuncName] = useState('y')
+  const [checkWorkInput, setCheckWorkInput] = useState('2*x + 4 = 10\n2*x = 6\nx = 3')
+  const [checkWorkResult, setCheckWorkResult] = useState<CheckWorkResult['lines'] | null>(null)
 
   const availableModes = (Object.keys(MODE_LABELS) as Mode[]).filter((m) => m !== 'impedance' || settings.electricalMode)
 
@@ -151,7 +154,7 @@ export default function MathPanel({ onClose }: Props) {
     implicit_multiplication: settings.implicitMultiplication ?? true,
   }
 
-  const needsExpr = mode !== 'impedance' && mode !== 'stats' && mode !== 'matrix'
+  const needsExpr = mode !== 'impedance' && mode !== 'stats' && mode !== 'matrix' && mode !== 'checkwork'
 
   const run = async () => {
     if (needsExpr && !expr.trim()) return
@@ -167,8 +170,18 @@ export default function MathPanel({ onClose }: Props) {
     setStatsResult(null)
     setMatrixResult(null)
     setSeriesResult(null)
+    setCheckWorkResult(null)
     try {
-      if (mode === 'series') {
+      if (mode === 'checkwork') {
+        const lines = checkWorkInput.split('\n').filter((l) => l.trim())
+        if (lines.length === 0) {
+          setError('Write at least one line.')
+        } else {
+          const r = await mathEngine.checkWork(lines, varName, notation)
+          if (!r.ok || !r.lines) setError(r.error ?? 'Could not check this.')
+          else setCheckWorkResult(r.lines)
+        }
+      } else if (mode === 'series') {
         const r = await mathEngine.series(expr, varName, Number(seriesAbout) || 0, Math.max(1, Math.min(12, Number(seriesOrder) || 5)), notation)
         if (!r.ok || !r.polynomial) setError(r.error ?? 'Could not expand this.')
         else {
@@ -355,6 +368,16 @@ export default function MathPanel({ onClose }: Props) {
               value={statsInput}
               onChange={(e) => setStatsInput(e.target.value)}
               style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d7dde5', fontSize: 15, fontFamily: 'monospace', background: 'white', color: '#1e1e2e' }}
+            />
+          </label>
+        ) : mode === 'checkwork' ? (
+          <label style={{ fontSize: 13, color: '#4b5563', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            Your work, one step per line
+            <textarea
+              value={checkWorkInput}
+              onChange={(e) => setCheckWorkInput(e.target.value)}
+              rows={5}
+              style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d7dde5', fontSize: 15, fontFamily: 'monospace', background: 'white', color: '#1e1e2e', resize: 'vertical' }}
             />
           </label>
         ) : mode === 'matrix' ? (
@@ -603,6 +626,23 @@ export default function MathPanel({ onClose }: Props) {
             <span style={{ fontSize: 12, color: matrixResult.verified ? '#16a34a' : '#9b1c1c' }}>
               {matrixResult.verified ? 'verified' : 'NOT verified — check this'}
             </span>
+          </div>
+        )}
+
+        {checkWorkResult && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {checkWorkResult.map((l, i) => {
+              const color = l.status === 'wrong' ? '#9b1c1c' : l.status === 'ok' ? '#16a34a' : l.status === 'start' ? '#4b5563' : '#b45309'
+              const bg = l.status === 'wrong' ? '#fde2e2' : '#f4f6f9'
+              return (
+                <div key={i} style={{ padding: '8px 10px', borderRadius: 8, background: bg, fontFamily: 'monospace', fontSize: 15, color: '#1e1e2e' }}>
+                  {l.line}
+                  <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'sans-serif', color }}>
+                    {l.status === 'start' ? 'starting line' : l.status === 'ok' ? 'follows OK' : l.status === 'wrong' ? "doesn't follow — check this" : 'could not verify'}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

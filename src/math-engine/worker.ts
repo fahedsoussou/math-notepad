@@ -54,6 +54,7 @@ export interface EngineRequest {
     | 'series_steps'
     | 'ode_solve'
     | 'laplace_transform_steps'
+    | 'check_work'
   args: unknown[]
 }
 

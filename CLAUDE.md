@@ -982,12 +982,13 @@ placeholder + SymPy/Pyodide math engine) was built first, as a technical
 necessity, not a detour from the instruction. By the end of the session,
 the engine covered Solve/Differentiate/Integrate/Simplify/Plot (Phase 1 +
 started Phase 4), electrical mode's impedance + unit conversion (Phase 5),
-and series/statistics/matrices/ODEs/Laplace transforms (Phase 6) — all 11
-with real, verified-step UI in a new "Math" panel, and 86 Vitest tests
-(real Pyodide+SymPy under Node, not mocked) passing. PDF import/export
-(Phase 4's other half), "Check my work" mode, deeper Phase 3 step
-coverage, Phase 2 offline recognition, and Phase 7 polish are still open
-— see `PROGRESS.md`'s "next up" list, in the order to tackle them.
+series/statistics/matrices/ODEs/Laplace transforms (Phase 6), and "Check
+my work" (flags the first line that doesn't follow from the one before
+it) — all 12 with real, verified-step UI in a new "Math" panel, and 92
+Vitest tests (real Pyodide+SymPy under Node, not mocked) passing. PDF
+import/export (Phase 4's other half), deeper Phase 3 step coverage,
+Phase 2 offline recognition, and Phase 7 polish are still open — see
+`PROGRESS.md`'s "next up" list, in the order to tackle them.
 
 - `src/math-engine/` (new): `pythonSource.ts` (SymPy logic, shared
   verbatim between the browser Worker and the Vitest test bank),

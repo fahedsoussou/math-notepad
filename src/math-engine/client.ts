@@ -135,6 +135,11 @@ class MathEngineClient {
   laplaceTransform(expr: string, varName = 't', sName = 's', notation?: NotationSettings, timeoutMs?: number) {
     return this.call<LaplaceResult>('laplace_transform_steps', [expr, varName, sName, notation], timeoutMs)
   }
+  /** "Check my work": flags the first line that isn't mathematically
+   * consistent with the one before it. */
+  checkWork(lines: string[], varName = 'x', notation?: NotationSettings, timeoutMs?: number) {
+    return this.call<CheckWorkResult>('check_work', [lines, varName, notation], timeoutMs)
+  }
 }
 
 export interface ExprFmt {
@@ -227,6 +232,13 @@ export interface LaplaceResult {
   steps?: { text: string }[]
   result?: ExprFmt
   verified?: boolean | null
+}
+export interface CheckWorkResult {
+  ok: boolean
+  error?: string
+  lines?: { line: string; status: 'start' | 'ok' | 'wrong' | 'unverifiable' }[]
+  /** Python's None crosses as undefined, not null. */
+  first_wrong_line?: number
 }
 
 export const mathEngine = new MathEngineClient()

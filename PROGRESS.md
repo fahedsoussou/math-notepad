@@ -283,22 +283,56 @@ has to exist first.
   `y(x) = C₁sin(x) + C₂cos(x)`, both verified in green. Phase 6 UI is
   now fully done — all 5 functions have working, tested UI.
 
+### "Check my work" mode — DONE, tested, working end-to-end
+
+A deliberately **narrower** version than a full tutoring system (which
+would need to recognise *which* algebra rule the student intended on
+each line — flagged as the hard part in earlier planning). What's built
+instead, and is genuinely useful on its own: `check_work(lines, var,
+notation)` in `pythonSource.ts` checks each line against the one right
+before it and flags the first one that isn't mathematically consistent.
+- Two consecutive **equations** are consistent if they have the same
+  solution set (compared numerically — exact symbolic equality of
+  solution sets isn't reliable beyond simple polynomials).
+- Two consecutive **plain expressions** (no `=`) are consistent if
+  they're numerically equal (reuses `verify_equal_numeric`).
+- A line that switches between the two (equation ↔ expression) is marked
+  `unverifiable`, not wrongly flagged `wrong` — there's no sound way to
+  compare them directly.
+- **Bug found while writing the test bank, not a code bug**: Python's
+  `None` crosses the Pyodide boundary as JS `undefined`, not `null`.
+  `first_wrong_line` is `None` when nothing's wrong, so client-side code
+  checking it must use `=== undefined`, not `=== null` — the tests
+  originally asserted `null` and failed every "all correct" case until
+  fixed. `client.ts`'s `CheckWorkResult.first_wrong_line` is typed
+  `number | undefined` (not `| null`) to make this the obvious choice at
+  the call site, not something to rediscover.
+- UI: a new "Check my work" mode in `MathPanel.tsx` with a multi-line
+  textarea instead of the usual single expression box; each line renders
+  back with a status tag (starting line / follows OK / doesn't follow —
+  check this / could not verify), the first wrong line's row highlighted
+  red.
+- Tests: 6 new (correct linear solve, correct simplification, caught
+  arithmetic error, caught bad simplification, empty input rejected,
+  equation→expression switch marked unverifiable not wrong) — 92 tests
+  total now.
+- **Verified live in the browser**: the default 3-line correct solve
+  showed all green; deliberately breaking line 2 (`2*x = 7` instead of
+  `2*x = 6`) correctly flagged it red — and also correctly flagged line 3
+  (`x = 3`, which doesn't follow from the *wrong* `2*x = 7` either, since
+  the right follow-on would be `x = 3.5`) — a good sign the check is
+  really comparing consecutive lines, not just the final answer against
+  some expected value.
+
 ## In progress / next up, in order
 
 1. Phase 4: PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused
    yet).
-2. "Check my work" mode: user writes their solution line by line, app
-   flags the first wrong line. Plan: a new input mode where each line is
-   parsed and checked against the previous line via
-   `verify_equal_numeric`-style substitution (is line N+1 actually implied
-   by/equal to line N under the operation being performed) — needs some
-   design thought on how to detect *which* operation the user intended
-   per line (that's the hard part) before implementing.
-3. Phase 3 step-by-step: the engine already produces steps for solve/
+2. Phase 3 step-by-step: the engine already produces steps for solve/
    diff/integrate/series/etc.; this phase is mostly about *more* step
    coverage (more integration techniques — substitution, by parts — more
    equation types) and a nicer in-canvas UI than the current modal panel.
-4. Phase 5 extras (basic series RLC + unit conversion already done):
+3. Phase 5 extras (basic series RLC + unit conversion already done):
    phasor addition/subtraction UI, parallel impedance, AC power
    calculations — only if these turn out to matter in practice.
 5. Phase 2: offline recognition (ONNX + CoMER model, MathWriting dataset) —

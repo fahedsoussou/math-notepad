@@ -60,6 +60,11 @@ to report — write down which line it was.
       in green.
 15. Tap **Laplace**, type `exp(-t)`, set Variable to `t`, tap Laplace.
     - **Expect**: result `1/(s + 1)` with "verified" in green.
+16. Tap **Check my work**, leave the default 3 lines, tap Check my work.
+    - **Expect**: all 3 lines show green ("follows OK" for lines 2-3).
+17. Change the second line to something wrong (e.g. `2*x = 7` instead of
+    `2*x = 6`), tap Check my work again.
+    - **Expect**: that line turns red ("doesn't follow — check this").
 
 ## Writing feel (from earlier this session — re-check if you haven't yet)
 

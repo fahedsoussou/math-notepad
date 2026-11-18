@@ -683,4 +683,62 @@ def laplace_transform_steps(expr_str, var_name='t', s_name='s', notation=None):
 
         return {'ok': True, 'steps': steps, 'result': _fmt(F), 'verified': verified}
     return _safe(run)
+
+# ---- Check my work --------------------------------------------------------
+
+def check_work(lines, var_name='x', notation=None):
+    """Checks each line against the previous one, flagging the FIRST line
+    that doesn't follow, so the student can see exactly where it went
+    wrong rather than only "the final answer is wrong". Two consecutive
+    EQUATIONS are consistent if they have the same solution set (compared
+    numerically, since exact symbolic equality of solution sets isn't
+    reliable beyond simple polynomials); two consecutive EXPRESSIONS are
+    consistent if they're numerically equal. This does not try to guess
+    *which* algebra rule the student intended to apply on that line, only
+    whether the line is mathematically consistent with the one before it
+    - a real but deliberately narrower version of "check my work" than a
+    full tutoring system would do."""
+    def run():
+        var = symbols(var_name, real=True)
+        parsed = []
+        for line in lines:
+            text = line.strip()
+            if not text:
+                continue
+            try:
+                if '=' in text:
+                    lhs_s, rhs_s = text.split('=', 1)
+                    lhs = _parse(lhs_s, notation, var_name)
+                    rhs = _parse(rhs_s, notation, var_name)
+                    parsed.append({'text': text, 'kind': 'equation', 'value': lhs - rhs})
+                else:
+                    parsed.append({'text': text, 'kind': 'expression', 'value': _parse(text, notation, var_name)})
+            except Exception as exc:
+                return {'ok': False, 'error': f'Could not read this line: "{text}" ({exc})'}
+
+        if len(parsed) == 0:
+            return {'ok': False, 'error': 'No lines to check.'}
+
+        results = [{'line': parsed[0]['text'], 'status': 'start'}]
+        first_wrong_line = None
+        for i in range(1, len(parsed)):
+            prev, curr = parsed[i - 1], parsed[i]
+            status = 'unverifiable'
+            if prev['kind'] == 'expression' and curr['kind'] == 'expression':
+                eq = verify_equal_numeric(prev['value'], curr['value'], var_name)
+                status = 'ok' if eq else ('wrong' if eq is False else 'unverifiable')
+            elif prev['kind'] == 'equation' and curr['kind'] == 'equation':
+                try:
+                    sol_prev = sorted((complex(sympy.N(s)) for s in solve(Eq(prev['value'], 0), var)), key=lambda c: (c.real, c.imag))
+                    sol_curr = sorted((complex(sympy.N(s)) for s in solve(Eq(curr['value'], 0), var)), key=lambda c: (c.real, c.imag))
+                    if len(sol_prev) == len(sol_curr):
+                        status = 'ok' if all(abs(a - b) < 1e-6 for a, b in zip(sol_prev, sol_curr)) else 'wrong'
+                except Exception:
+                    pass
+            results.append({'line': curr['text'], 'status': status})
+            if status == 'wrong' and first_wrong_line is None:
+                first_wrong_line = i
+
+        return {'ok': True, 'lines': results, 'first_wrong_line': first_wrong_line}
+    return _safe(run)
 `
