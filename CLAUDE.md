@@ -917,6 +917,47 @@ calligraphy nib — those stop abruptly at full width in real life.
   whether fountain/calligraphy's pressure-driven width feels natural
   under the actual S Pen.
 
+### Step I — Fixed "writing moves after finishing" + more pencil texture: DONE ✅ (built, not yet tablet-tested)
+
+Fahed reported that right after finishing a stroke, the writing "kinda
+moves in a weird way" — this turned out to be the page itself panning,
+not ink actually moving, and it's the exact palm-rejection gap already
+flagged as a risk back in Step 2 ("if palm strokes still leak through…").
+
+- **Root cause**: if a palm/finger is already resting on the screen when
+  a pen stroke starts (or briefly during it), its touch pointer gets
+  registered in `touchPoints` on `pointerdown` (before `isDrawing` turns
+  true) and then every subsequent `pointermove` for it is correctly
+  ignored while drawing — but the map entry itself is never cleared, so
+  it's still sitting there with a stale tracked position. The instant
+  the pen lifts (`isDrawing.current = false`), the very next
+  `pointermove` for that still-resting palm is no longer ignored and
+  immediately pans the page via `transformRef.current.offsetX +=
+  e.movementX` — which looks exactly like "my writing moved" right after
+  finishing, because the *view* shifted under it.
+- **Fix**: `handlePointerUp` (`InkCanvas.tsx`) now clears `touchPoints`
+  and `lastPinch` the moment a pen/eraser/lasso stroke ends, for every
+  tool, before any of the per-tool early returns. Any touch that was
+  already down during the stroke is forced to be "rediscovered" — it's
+  ignored until it's actually lifted and put down again (a fresh
+  `pointerdown`), which re-registers it at its *current* position with
+  no stale delta, instead of panning off a leftover one.
+- **Cannot be verified in the desktop browser preview** — this is
+  specifically a multi-pointer (pen + simultaneous resting touch)
+  scenario that synthetic/mouse-only testing can't reproduce. The fix is
+  verified by code inspection (the exact mechanism above) and must be
+  confirmed on the actual tablet by writing normally with the hand
+  resting on the screen, the way Fahed normally holds it.
+- **Pencil texture, round 2**: added `applyPencilJitter()` — nudges each
+  point slightly sideways off the stroke's own direction by a small,
+  deterministic pseudo-random amount (same input always jitters the same
+  way, so a committed stroke doesn't visibly wobble on every repaint).
+  A real pencil line is never as perfectly smooth as perfect-freehand's
+  curve fit makes it look; this roughens the edge on top of the Step H
+  grain texture. Verified in the desktop preview: the pencil stroke's
+  edge now visibly isn't a clean curve, next to the still-smooth
+  fountain/ballpoint strokes.
+
 ### Still open from Fahed's "match the design" request
 
 - **Real page-content thumbnails** for notebook/folder cards (currently a

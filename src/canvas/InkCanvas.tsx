@@ -52,6 +52,27 @@ function applyCalligraphyAngle(points: PagePoint[]): PagePoint[] {
   })
 }
 
+/** Nudges each point slightly sideways off the stroke's own direction, by a
+ * deterministic pseudo-random amount (same input points always jitter the
+ * same way, so repeated repaints of a committed stroke don't visibly
+ * wobble) — a real pencil line is never perfectly smooth the way
+ * perfect-freehand's curve fit otherwise makes it look. */
+function applyPencilJitter(points: PagePoint[], size: number): PagePoint[] {
+  const amplitude = size * 0.08
+  return points.map(([x, y, pressure], i) => {
+    const prev = points[Math.max(0, i - 1)]
+    const next = points[Math.min(points.length - 1, i + 1)]
+    const dx = next[0] - prev[0]
+    const dy = next[1] - prev[1]
+    const len = Math.hypot(dx, dy) || 1
+    const nx = -dy / len
+    const ny = dx / len
+    const n = Math.sin(i * 12.9898) * 43758.5453
+    const jitter = (n - Math.floor(n) - 0.5) * 2 * amplitude
+    return [x + nx * jitter, y + ny * jitter, pressure]
+  })
+}
+
 // Built once, lazily, and reused for every pencil stroke.
 let pencilTextureCanvas: HTMLCanvasElement | null = null
 function getPencilTexture(): HTMLCanvasElement {
@@ -367,7 +388,12 @@ export default function InkCanvas({
       if (points.length === 0) return
       const isPen = strokeTool === 'pen'
       const penOptions = PEN_TYPE_OPTIONS[strokePenType ?? PEN_TYPES[0]]
-      const inputPoints = isPen && strokePenType === 'calligraphy' ? applyCalligraphyAngle(points) : points
+      const inputPoints =
+        isPen && strokePenType === 'calligraphy'
+          ? applyCalligraphyAngle(points)
+          : isPen && strokePenType === 'pencil'
+            ? applyPencilJitter(points, size)
+            : points
       const taper = !isPen || penOptions.taper
       const stroke = getStroke(inputPoints, {
         size,
@@ -833,6 +859,17 @@ export default function InkCanvas({
       }
       if (!isDrawing.current) return
       isDrawing.current = false
+      // A palm resting on the screen just before/during the stroke has a
+      // touch pointer we were ignoring (see handlePointerDown/Move below)
+      // but still tracking its last known position. The instant the pen
+      // lifts, that tracking would otherwise let the very next (even tiny)
+      // palm movement immediately pan the page, which looks like the ink
+      // itself jumped right after finishing a word. Clearing here forces
+      // any already-resting touch to be rediscovered fresh — ignored until
+      // it's actually lifted and put down again — rather than instantly
+      // acting on stale tracking.
+      touchPoints.current.clear()
+      lastPinch.current = null
 
       if (tool === 'eraser') return
 
