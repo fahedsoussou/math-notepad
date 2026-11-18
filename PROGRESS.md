@@ -217,27 +217,79 @@ has to exist first.
   got the correct steps and a green "verified" result.
 - **Not yet tablet-tested.**
 
+### Phase 6 (engine only so far): series, statistics, matrices, ODEs, Laplace
+- `pythonSource.ts` gained 5 new functions, all tested, none wired into
+  `MathPanel.tsx` yet (see "next up" below — 5 genuinely different input
+  shapes, didn't want to rush low-quality UI for all of them in one go):
+  - `series_steps(expr, var, about, order)` — term-by-term Taylor
+    expansion (each `f^(n)(a)/n! * (x-a)^n` is its own step, not one
+    opaque `sympy.series()` call), a ratio-test convergence estimate
+    **explicitly marked as based only on the computed terms**, not a
+    general proof, and a numeric closeness check near the expansion
+    point (a series is only ever a local approximation, so this checks
+    "close", not "equal").
+  - `stats_summary(data)` — mean/median/variance/std with the textbook
+    step sequence, variance cross-checked against the independent
+    E[x²]−E[x]² formula (Bessel-corrected) rather than trusting one
+    formula; handles n=1 without dividing by zero.
+  - `matrix_steps(matrix, operation)` — determinant (cross-checked via
+    cofactor expansion for ≤4×4), inverse (cross-checked via M·M⁻¹=I,
+    rejects singular matrices with a clear error instead of a NaN/crash),
+    eigenvalues (each one cross-checked via det(M−λI)=0).
+  - `ode_solve(equation, func_name, var_name)` — lets the user write
+    `y'' + y = 0` instead of SymPy's formal `Derivative(y(x), x, x)`
+    syntax (a small preprocessor converts primes and bare function names);
+    verified by substituting the solution back into the original ODE.
+  - `laplace_transform_steps(expr, var, s)` — verified by taking the
+    inverse transform and comparing to the original (mechanical check,
+    same spirit as verifying integration by differentiating the result).
+- **Two real bugs found and fixed, same root cause as the backtick bug
+  from Step 1 of this session but for a different character**: both new
+  regex patterns used single backslashes (`\w`, `\b`, `\s`, `\(`) written
+  directly in `pythonSource.ts`. Since that whole file is a **JS template
+  literal**, JS itself processes backslash escapes before Python ever
+  sees the string — `\b` is JS's backspace escape (silently became
+  `\x08`), and `\w`/`\s`/`\(` aren't recognized JS escapes so JS just
+  **drops the backslash**, leaving literal `w`, `s`, `(`. The resulting
+  regex was either silently wrong (matched literal "w" instead of
+  `\w`-class — only didn't break the one test case by coincidence, since
+  that particular input had no "w" to need `\w`) or a straight compile
+  error (`missing ), unterminated subpattern` from the mangled
+  lookahead). Found by tracing the actual runtime pattern string with a
+  monkey-patched `re.sub`, not by guessing. **Rule, now proven twice over
+  (backticks, now backslashes): any Python regex (or anything else using
+  backslash escapes) written into `pythonSource.ts` needs every backslash
+  doubled, because JS's template-literal escaping happens first.** Fixed
+  by doubling the backslashes in both patterns (`\\w`, `\\b`, `\\s`,
+  `\\(` in the TS source → `\w`, `\b`, `\s`, `\(` in the Python string
+  Python actually receives).
+- Tests: 12 new (series ×2, stats ×2, matrices ×4, ODEs ×2, Laplace ×2) —
+  86 tests total now.
+
 ## In progress / next up, in order
 
-1. Phase 4: PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused
+1. Wire the 5 Phase 6 functions above into `MathPanel.tsx` — each needs
+   its own input shape (series: expr + expansion point + order; stats: a
+   list of numbers, maybe a simple comma-separated box to start; matrix:
+   a small grid input; ODE: an equation box with a note about the `y'`
+   shorthand; Laplace: an expr box) — more UI work than Phase 4/5's single
+   extra mode each, hence not rushed in the same pass as the engine code.
+2. Phase 4: PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused
    yet).
-2. "Check my work" mode: user writes their solution line by line, app
+3. "Check my work" mode: user writes their solution line by line, app
    flags the first wrong line. Plan: a new input mode where each line is
    parsed and checked against the previous line via
    `verify_equal_numeric`-style substitution (is line N+1 actually implied
    by/equal to line N under the operation being performed) — needs some
    design thought on how to detect *which* operation the user intended
    per line (that's the hard part) before implementing.
-3. Phase 3 step-by-step: the engine already produces steps; this phase is
-   mostly about *more* step coverage (series expansion steps, more
-   integration techniques — substitution, by parts — more equation types)
-   and a nicer in-canvas UI than the current modal panel.
-4. Phase 5 extras (basic series RLC + unit conversion already done):
+4. Phase 3 step-by-step: the engine already produces steps for solve/
+   diff/integrate/series/etc.; this phase is mostly about *more* step
+   coverage (more integration techniques — substitution, by parts — more
+   equation types) and a nicer in-canvas UI than the current modal panel.
+5. Phase 5 extras (basic series RLC + unit conversion already done):
    phasor addition/subtraction UI, parallel impedance, AC power
    calculations — only if these turn out to matter in practice.
-5. Phase 6: series (with convergence-test steps), statistics (data table
-   tool), matrices, ODEs, Laplace transforms — each needs its own
-   `_steps`-style function in `pythonSource.ts` plus test-bank coverage.
 6. Phase 2: offline recognition (ONNX + CoMER model, MathWriting dataset) —
    deliberately last per Fahed's reordering. Nothing started yet.
 7. Phase 7 polish: full offline math (self-host Pyodide's wasm/data

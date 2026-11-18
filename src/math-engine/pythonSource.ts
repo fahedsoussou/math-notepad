@@ -454,4 +454,233 @@ def impedance_rlc(resistance, inductance, capacitance, frequency_hz):
             'verified': verified,
         }
     return _safe(run)
+
+# ---- Phase 6: advanced math -----------------------------------------------
+
+def series_steps(expr_str, var_name='x', about=0, order=5, notation=None):
+    """Taylor series of expr about x=about, up to the given order, built
+    term by term (f(a), f'(a), f''(a)/2!, ...) rather than one opaque
+    sympy.series() call, so each coefficient is its own visible step.
+    Convergence: a ratio test on the *computed* coefficients — this is
+    based on the first order terms actually produced, not a proof for
+    every term of the true infinite series, and is marked as such."""
+    def run():
+        var = symbols(var_name, real=True)
+        expr = _parse(expr_str, notation, var_name)
+        a = sympy.Rational(about).limit_denominator(10**6) if not isinstance(about, int) else sympy.Integer(about)
+        steps = []
+        terms = []
+        coeffs = []
+        current = expr
+        for n in range(order + 1):
+            value_at_a = current.subs(var, a)
+            coeff = sympy.simplify(value_at_a / sympy.factorial(n))
+            coeffs.append(coeff)
+            term = coeff * (var - a) ** n
+            terms.append(term)
+            steps.append({'text': f'Term {n}: f^({n})(a)/{n}! * (x-a)^{n} = {sympy.N(coeff, 6)} * (x - {a})^{n}'})
+            current = diff(current, var)
+        polynomial = sympy.expand(sum(terms))
+
+        # Ratio test on the computed coefficients (last two non-zero ones).
+        nonzero = [c for c in coeffs if c != 0]
+        convergence = None
+        if len(nonzero) >= 2:
+            ratio = sympy.Abs(sympy.N(nonzero[-1] / nonzero[-2]))
+            convergence = {
+                'ratio_last_two_terms': float(ratio),
+                'note': 'Based only on the terms actually computed above, not a general proof for every term of the infinite series.',
+            }
+
+        # Numeric check: the polynomial should approximate f near x=a (a
+        # Taylor series is only ever a local approximation, so this checks
+        # "close", not "equal", and only a small displacement from a).
+        test_point = a + sympy.Rational(1, 20)
+        try:
+            exact = complex(expr.subs(var, test_point).evalf())
+            approx = complex(polynomial.subs(var, test_point).evalf())
+            verified = abs(exact - approx) < 0.05
+        except Exception:
+            verified = None
+
+        return {
+            'ok': True,
+            'steps': steps,
+            'polynomial': _fmt(polynomial),
+            'convergence': convergence,
+            'verified': verified,
+        }
+    return _safe(run)
+
+def stats_summary(data):
+    """Descriptive statistics for a list of numbers, with the textbook
+    step sequence (sum -> mean -> deviations -> variance -> std), and the
+    variance cross-checked against the "computational formula"
+    (E[x^2] - E[x]^2) as an independent recomputation rather than trusting
+    one formula."""
+    def run():
+        values = [sympy.Rational(v).limit_denominator(10**9) for v in data]
+        n = len(values)
+        if n == 0:
+            return {'ok': False, 'error': 'No data given.'}
+        total = sum(values)
+        mean = sympy.simplify(total / n)
+        sorted_values = sorted(values)
+        mid = n // 2
+        median = sorted_values[mid] if n % 2 == 1 else (sorted_values[mid - 1] + sorted_values[mid]) / 2
+
+        deviations = [v - mean for v in values]
+        sq_dev_sum = sum(d * d for d in deviations)
+        sample_variance = sympy.simplify(sq_dev_sum / (n - 1)) if n > 1 else sympy.Integer(0)
+        std_dev = sympy.sqrt(sample_variance)
+
+        # Independent cross-check: E[x^2] - E[x]^2 (population formula,
+        # scaled to the sample version) should match sq_dev_sum/(n-1).
+        mean_of_squares = sympy.simplify(sum(v * v for v in values) / n)
+        population_variance_check = sympy.simplify(mean_of_squares - mean * mean)
+        # Bessel's correction: population var * n / (n-1) = sample var.
+        rescaled = sympy.simplify(population_variance_check * n / (n - 1)) if n > 1 else sympy.Integer(0)
+        verified = n <= 1 or abs(float(rescaled) - float(sample_variance)) < 1e-9
+
+        return {
+            'ok': True,
+            'steps': [
+                {'text': f'Sum = {sympy.N(total, 6)}, n = {n}'},
+                {'text': f'Mean = sum/n = {sympy.N(mean, 6)}'},
+                {'text': f'Median = {sympy.N(median, 6)}'},
+                {'text': f'Sum of squared deviations from the mean = {sympy.N(sq_dev_sum, 6)}'},
+                {'text': f'Sample variance = sum_sq_dev / (n-1) = {sympy.N(sample_variance, 6)}'},
+                {'text': f'Standard deviation = sqrt(variance) = {sympy.N(std_dev, 6)}'},
+            ],
+            'mean': float(mean),
+            'median': float(median),
+            'variance': float(sample_variance),
+            'std_dev': float(std_dev),
+            'verified': verified,
+        }
+    return _safe(run)
+
+def matrix_steps(matrix, operation):
+    """operation: 'determinant' | 'inverse' | 'eigenvalues'. matrix is a
+    list of equal-length rows of numbers."""
+    def run():
+        M = sympy.Matrix([[sympy.nsimplify(x) for x in row] for row in matrix])
+        if M.rows != M.cols:
+            return {'ok': False, 'error': f'Need a square matrix for {operation}; got {M.rows}x{M.cols}.'}
+
+        if operation == 'determinant':
+            det = M.det()
+            steps = [{'text': f'det(M) = {sympy.N(det, 6)}'}]
+            # Cross-check with cofactor expansion along the first row for
+            # anything small enough that it's cheap to redo independently.
+            verified = True
+            if M.rows <= 4:
+                cofactor_det = sum(
+                    (-1) ** j * M[0, j] * M.minor_submatrix(0, j).det() for j in range(M.cols)
+                )
+                verified = sympy.simplify(det - cofactor_det) == 0
+            return {'ok': True, 'steps': steps, 'result': _fmt(det), 'verified': verified}
+
+        if operation == 'inverse':
+            det = M.det()
+            if det == 0:
+                return {'ok': False, 'error': 'This matrix is singular (determinant 0) — it has no inverse.'}
+            inv = M.inv()
+            steps = [
+                {'text': f'det(M) = {sympy.N(det, 6)} (nonzero, so an inverse exists)'},
+                {'text': 'M_inv computed via adjugate / det(M)'},
+            ]
+            identity_check = sympy.simplify(M * inv - sympy.eye(M.rows))
+            verified = identity_check == sympy.zeros(M.rows, M.rows)
+            return {
+                'ok': True,
+                'steps': steps,
+                'result': {'text': str(inv.tolist())},
+                'verified': verified,
+            }
+
+        if operation == 'eigenvalues':
+            eigenvals = M.eigenvals()
+            steps = [{'text': f'Characteristic polynomial: det(M - lambda*I) = {sympy.N(M.charpoly().as_expr(), 6)}'}]
+            results = []
+            all_verified = True
+            for val, multiplicity in eigenvals.items():
+                check = sympy.simplify((M - val * sympy.eye(M.rows)).det())
+                ok_val = check == 0
+                all_verified = all_verified and ok_val
+                results.append({'value': _fmt(val), 'multiplicity': multiplicity, 'verified': ok_val})
+            return {'ok': True, 'steps': steps, 'eigenvalues': results, 'verified': all_verified}
+
+        return {'ok': False, 'error': f'Unknown operation: {operation}'}
+    return _safe(run)
+
+import re as _re
+_ODE_PRIME_RE = _re.compile(r"([a-zA-Z_]\\w*)('+)")
+
+def _ode_preprocess(text, func_name, var_name):
+    """Lets the user write y'' + y = 0 instead of the formal
+    Eq(Derivative(y(x), x, x) + y(x), 0) sympy needs. Converts func' /
+    func_prime_prime into Derivative(func(var), var[, var]), and bare func (not
+    already followed by '(') into func(var)."""
+    def replace_prime(m):
+        name, primes = m.group(1), m.group(2)
+        if name != func_name:
+            return m.group(0)
+        order = len(primes)
+        var_args = ', '.join([var_name] * order)
+        return f'Derivative({func_name}({var_name}), {var_args})'
+
+    text = _ODE_PRIME_RE.sub(replace_prime, text)
+    # Bare function name not already applied (func( ) or func(x)).
+    text = _re.sub(rf'\\b{func_name}\\b(?!\\s*\\()', f'{func_name}({var_name})', text)
+    return text
+
+def ode_solve(equation_str, func_name='y', var_name='x', notation=None):
+    def run():
+        var = symbols(var_name, real=True)
+        func = sympy.Function(func_name)
+        text = _ode_preprocess(equation_str, func_name, var_name)
+        local_dict = {var_name: var, func_name: func}
+        if '=' in text:
+            lhs_s, rhs_s = text.split('=', 1)
+            lhs = sympy.parsing.sympy_parser.parse_expr(lhs_s, local_dict=local_dict, transformations=TRANSFORMATIONS_IMPLICIT)
+            rhs = sympy.parsing.sympy_parser.parse_expr(rhs_s, local_dict=local_dict, transformations=TRANSFORMATIONS_IMPLICIT)
+        else:
+            lhs = sympy.parsing.sympy_parser.parse_expr(text, local_dict=local_dict, transformations=TRANSFORMATIONS_IMPLICIT)
+            rhs = sympy.Integer(0)
+        eq = Eq(lhs, rhs)
+        solution = sympy.dsolve(eq, func(var))
+
+        # Verify by substituting the solution back into the original ODE.
+        check_expr = (lhs - rhs).subs(func(var), solution.rhs)
+        check_expr = sympy.simplify(check_expr.doit())
+        verified = check_expr == 0
+
+        return {
+            'ok': True,
+            'steps': [{'text': f'Equation: {eq}'}, {'text': f'Solution: {solution}'}],
+            'result': _fmt(solution),
+            'verified': verified,
+        }
+    return _safe(run)
+
+def laplace_transform_steps(expr_str, var_name='t', s_name='s', notation=None):
+    def run():
+        t = symbols(var_name, positive=True)
+        s = symbols(s_name)
+        expr = _parse(expr_str, notation, var_name)
+        F = sympy.laplace_transform(expr, t, s, noconds=True)
+        steps = [{'text': f'L{{{expr}}}(s) = {F}'}]
+
+        # Verify by taking the inverse transform and comparing to the
+        # original — the one direction that's mechanical here, same
+        # spirit as verifying integration by differentiating the result.
+        try:
+            back = sympy.inverse_laplace_transform(F, s, t)
+            verified = sympy.simplify(back - expr) == 0
+        except Exception:
+            verified = None
+
+        return {'ok': True, 'steps': steps, 'result': _fmt(F), 'verified': verified}
+    return _safe(run)
 `
