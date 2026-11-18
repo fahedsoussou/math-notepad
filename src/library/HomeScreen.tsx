@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, createFolder, createNotebook, type NotebookDefaults } from '../storage/db'
+import { importPdf } from '../canvas/pdfImport'
 import * as s from './styles'
 import NewFolderDialog from './NewFolderDialog'
 import NewNotebookDialog from './NewNotebookDialog'
@@ -16,6 +17,8 @@ interface Props {
 export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, onOpenSettings }: Props) {
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [showNewNotebook, setShowNewNotebook] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
 
   const folders = useLiveQuery(() => db.folders.filter((f) => f.deletedAt === null).sortBy('name'), [])
   const recentNotebooks = useLiveQuery(
@@ -57,6 +60,22 @@ export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, 
     }
     const notebook = await createNotebook(folder.id, name, defaults)
     onOpenNotebook(notebook.id, folder.id)
+  }
+
+  const handlePdfFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setImporting(true)
+    try {
+      const folder = folders?.[0]
+      const { notebookId } = await importPdf(file, folder?.id ?? null)
+      onOpenNotebook(notebookId, folder?.id ?? null)
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Could not import this PDF.')
+    } finally {
+      setImporting(false)
+    }
   }
 
   return (
@@ -118,10 +137,20 @@ export default function HomeScreen({ onOpenFolder, onOpenNotebook, onOpenTrash, 
         <button style={s.iconButton} onClick={() => setShowNewFolder(true)}>
           + New folder
         </button>
+        <button style={s.iconButton} onClick={() => pdfInputRef.current?.click()} disabled={importing}>
+          {importing ? 'Importing…' : '+ Import PDF'}
+        </button>
         <button style={s.primaryButton} onClick={() => setShowNewNotebook(true)}>
           + New notebook
         </button>
       </div>
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept="application/pdf"
+        style={{ display: 'none' }}
+        onChange={handlePdfFileChosen}
+      />
 
       {showNewFolder && <NewFolderDialog onSave={handleCreateFolder} onCancel={() => setShowNewFolder(false)} />}
       {showNewNotebook && (

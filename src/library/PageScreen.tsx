@@ -175,6 +175,8 @@ export default function PageScreen({ pageId, notebookId, onBack, onNavigatePage 
       <div style={{ flex: 1, minHeight: 0 }}>
         <InkCanvas
           pageId={pageId}
+          notebookId={notebookId}
+          pdfPageIndex={page.pdfPageIndex}
           background={background}
           paperColor={paperColor}
           lineSpacing={lineSpacing}

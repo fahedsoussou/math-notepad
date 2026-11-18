@@ -991,11 +991,15 @@ canvas uses — extracted into `src/canvas/strokeGeometry.ts` so export can
 never drift from what's on screen), verified by actually rendering the
 exported PDF back through pdf.js and screenshotting it, not just "no
 error thrown". 98 Vitest tests (real Pyodide+SymPy under Node, not
-mocked) passing. PDF **import** (the architecturally bigger half — needs
-a new background-rendering path in `InkCanvas.tsx`, deliberately not
-rushed alongside export), deeper Phase 3 step coverage, Phase 2 offline
-recognition, and Phase 7 polish are still open — see `PROGRESS.md`'s
-"next up" list, in the order to tackle them.
+mocked) passing. Then **PDF import** (the architecturally bigger half of
+Phase 4 — a new `PdfSource` Dexie table, a shared `pdfjs.ts` loader, an
+`importPdf()` helper, a "+ Import PDF" button on Home, and a new
+background-rendering path in `InkCanvas.tsx` that draws the imported
+PDF page under the ink), verified live end-to-end including a full page
+reload (PDF background + ink both survive) — not yet tablet-tested
+(needs the real file-picker dialog). Deeper Phase 3 step coverage,
+Phase 2 offline recognition, and Phase 7 polish are still open — see
+`PROGRESS.md`'s "next up" list, in the order to tackle them.
 
 - `src/math-engine/` (new): `pythonSource.ts` (SymPy logic, shared
   verbatim between the browser Worker and the Vitest test bank),

@@ -59,9 +59,27 @@ export interface Page {
   lineSpacing?: LineSpacing
   /** Added later; absent on older pages, default to false (off) when reading. */
   marginLine?: boolean
+  /** Phase 4 PDF import: which page (0-based) of the notebook's imported
+   * PDF (see PdfSource) this page shows under the ink. Absent on every
+   * normal (non-imported) page. */
+  pdfPageIndex?: number
   createdAt: number
   updatedAt: number
   deletedAt: number | null
+}
+
+/** Phase 4 PDF import: the original PDF bytes for an imported notebook,
+ * one row per notebook (keyed by notebookId), so its pages can be
+ * re-rendered as a background layer every time the notebook is opened —
+ * without this, "imported" PDF pages would only last until reload. Kept
+ * as its own table (not a Notebook field) since IndexedDB handles large
+ * binary values better as their own object rather than embedded in a
+ * frequently-read row. */
+export interface PdfSource {
+  notebookId: string
+  data: Blob
+  pageCount: number
+  createdAt: number
 }
 
 /** Pen "feel" — width/taper/opacity/texture, independent of colour and size. */
@@ -142,6 +160,7 @@ class MathNotepadDB extends Dexie {
   strokes!: EntityTable<Stroke, 'id'>
   symbols!: EntityTable<PlacedSymbol, 'id'>
   settings!: EntityTable<AppSettings, 'id'>
+  pdfSources!: EntityTable<PdfSource, 'notebookId'>
 
   constructor() {
     super('math-notepad')
@@ -166,6 +185,11 @@ class MathNotepadDB extends Dexie {
     // getSettings below), not seeded here.
     this.version(4).stores({
       settings: 'id',
+    })
+    // v5 adds PDF import (Phase 4). Additive only, same pattern as every
+    // prior version — no migration needed.
+    this.version(5).stores({
+      pdfSources: 'notebookId',
     })
   }
 }

@@ -81,6 +81,30 @@ to report — write down which line it was.
     lines/grid/paper colour yet (only your writing) — that's expected
     for now, not a bug. The PNG export does include the background.
 
+## PDF import (new)
+
+22. On the Home screen, tap **"+ Import PDF"** and pick any PDF file from
+    the tablet's storage.
+    - **Expect**: a new notebook appears (named after the file), with one
+      page per page of the PDF.
+23. Open that notebook, open its first page.
+    - **Expect**: the PDF page's own content shows faintly as the page
+      background, under the grid/lines (background defaults to Blank).
+      Writing with the S Pen draws on top of it normally.
+24. Use the ‹/› page navigation to move to page 2 (if the PDF has more
+    than one page).
+    - **Expect**: each page shows its own matching PDF page, not the
+      first page repeated.
+25. Pinch-zoom in a long way on an imported page.
+    - **Expect**: the PDF background may look a bit blurry at extreme
+      zoom (expected, not a bug — see PROGRESS.md) but your own ink stays
+      crisp at any zoom.
+26. Close the app fully and reopen it, go back to that same imported
+    page.
+    - **Expect**: the PDF background and anything you wrote on it are
+      both still there (this needs to survive a real app restart, not
+      just staying open).
+
 ## Writing feel (from earlier this session — re-check if you haven't yet)
 
 8. Write a few normal words with your hand resting on the screen the way

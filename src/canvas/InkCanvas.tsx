@@ -29,6 +29,7 @@ import {
   type Stroke,
   type PlacedSymbol,
 } from '../storage/db'
+import { loadPdfDocument, renderPdfPageToCanvas, getPdfPageSize } from './pdfjs'
 
 export type Tool = 'pen' | 'highlighter' | 'eraser' | 'lasso'
 
@@ -196,6 +197,8 @@ function gestureOverlapsAnyStroke(points: PagePoint[], strokes: Stroke[], radius
  */
 export default function InkCanvas({
   pageId,
+  notebookId,
+  pdfPageIndex,
   background,
   paperColor = 'white',
   lineSpacing = 'medium',
@@ -211,6 +214,12 @@ export default function InkCanvas({
   onExportPagePNG,
 }: {
   pageId: string
+  /** Phase 4 PDF import: needed only when `pdfPageIndex` is set, to look up
+   * the notebook's stored PDF bytes (see PdfSource in storage/db.ts). */
+  notebookId?: string
+  /** Phase 4 PDF import: when set, this page shows that 0-based page of the
+   * notebook's imported PDF as a background layer, under the ink. */
+  pdfPageIndex?: number
   background: PageBackground
   paperColor?: PaperColor
   lineSpacing?: LineSpacing
@@ -298,6 +307,39 @@ export default function InkCanvas({
     symbols: Map<string, { x: number; y: number }>
   } | null>(null)
 
+  // Phase 4 PDF import: for an imported page (pdfPageIndex set), load that
+  // page of the notebook's stored PDF and render it once to an off-screen
+  // bitmap, redrawn as a background layer every time redrawBase runs (pan/
+  // zoom just redraws the same bitmap at a different transform, no re-render
+  // of the PDF itself). Rendered at a fixed higher scale than the PDF's own
+  // point size so it stays reasonably crisp when zoomed in, without having
+  // to re-render on every zoom step (Tratto's full "redraw visible region at
+  // full res past a threshold" approach was deliberately skipped for this
+  // first pass — see PROGRESS.md).
+  const [pdfBitmap, setPdfBitmap] = useState<{ canvas: HTMLCanvasElement; width: number; height: number } | null>(
+    null,
+  )
+  useEffect(() => {
+    if (notebookId == null || pdfPageIndex == null) {
+      setPdfBitmap(null)
+      return
+    }
+    let cancelled = false
+    db.pdfSources.get(notebookId).then(async (source) => {
+      if (!source || cancelled) return
+      const bytes = await source.data.arrayBuffer()
+      const doc = await loadPdfDocument(bytes)
+      const pageNumber = pdfPageIndex + 1
+      const { width, height } = await getPdfPageSize(doc, pageNumber)
+      const RENDER_SCALE = 2
+      const canvas = await renderPdfPageToCanvas(doc, pageNumber, RENDER_SCALE)
+      if (!cancelled) setPdfBitmap({ canvas, width, height })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [notebookId, pdfPageIndex])
+
   // Load this page's strokes and symbols once, and reset undo/redo for the
   // new page.
   useEffect(() => {
@@ -380,6 +422,9 @@ export default function InkCanvas({
     ctx.fillRect(0, 0, cssWidth, cssHeight)
 
     applyContentTransform(ctx, dpr)
+    if (pdfBitmap) {
+      ctx.drawImage(pdfBitmap.canvas, 0, 0, pdfBitmap.width, pdfBitmap.height)
+    }
     paintBackground(
       ctx,
       background,
@@ -427,6 +472,7 @@ export default function InkCanvas({
     marginLine,
     paintStroke,
     paperColor,
+    pdfBitmap,
     selection,
     strokes,
     symbols,

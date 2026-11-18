@@ -375,25 +375,92 @@ ink canvas; import does — see "next up" below for why that's separate).
   This is a real round-trip check, not a size/type sniff.
 - **Not yet tablet-tested.**
 
+## Phase 4: PDF import — DONE, verified live, working end-to-end
+
+Built right after export, in small sub-steps per CLAUDE.md Rule 3 (schema
+→ pdf.js loader → import flow → canvas rendering → verify), since this is
+the architecturally bigger half: it adds a new rendering path to the
+already-stable, heavily-tested ink canvas.
+
+- `src/storage/db.ts` v5: additive only, same pattern as every prior
+  version. New `PdfSource` table (`notebookId, data: Blob, pageCount,
+  createdAt`) — one row per imported notebook, holding the original PDF
+  bytes so its pages can be re-rendered every time the notebook is
+  reopened (without this, "imported" would only last until reload). Kept
+  as its own table rather than a `Notebook` field since IndexedDB handles
+  large binary values better that way. New optional `Page.pdfPageIndex`
+  (0-based) — absent on every normal page, present only on a page created
+  by import, saying which page of the notebook's `PdfSource` it shows.
+- `src/canvas/pdfjs.ts` (new): one shared pdf.js setup module (worker URL
+  configured once via Vite's `?url` import, same pattern as the
+  math-engine's own Worker) — `loadPdfDocument`, `renderPdfPageToCanvas`,
+  `getPdfPageSize`. Both the import flow (counting pages) and the canvas
+  (drawing a page) go through this one module.
+- `src/canvas/pdfImport.ts` (new): `importPdf(file, folderId)` — reads
+  the file, counts its pages via pdf.js, creates a new notebook named
+  after the file (or `Page 1`/`Page 2`/… titles when there's more than
+  one page), one `Page` per PDF page (`background: 'blank'`,
+  `pdfPageIndex: i`), and stores the raw bytes as a `PdfSource` — all in
+  one Dexie transaction. Falls back to the first existing folder, or a
+  newly-created "Unfiled" one, when no folder is given — same convention
+  `HomeScreen.tsx` already uses for "+ New notebook" with no folder
+  context.
+- `src/library/HomeScreen.tsx`: new "+ Import PDF" button next to "+ New
+  folder"/"+ New notebook", opening a hidden `<input type="file"
+  accept="application/pdf">`; on a file being chosen, calls `importPdf`
+  and navigates straight into the new notebook.
+- `src/canvas/InkCanvas.tsx`: new optional `notebookId`/`pdfPageIndex`
+  props. A new effect loads the notebook's `PdfSource` row (only when
+  `pdfPageIndex` is set), renders that one page via `pdfjs.ts` to an
+  off-screen `<canvas>` once (at a fixed 2x scale for crispness, cached in
+  state — not re-rendered on every pan/zoom), and `redrawBase` draws that
+  bitmap as a background layer, under the existing pattern/strokes/
+  symbols, anchored at page-space (0,0) using the PDF's own point size as
+  its page-space width/height (1 point = 1 page-space unit, by
+  convention). `src/library/PageScreen.tsx` passes `notebookId` and
+  `page.pdfPageIndex` through.
+- **Known, deliberate scope limit**: the bitmap is rendered once at a
+  fixed resolution, not re-rendered at higher resolution when zoomed in
+  far past that (Tratto's own "redraw the visible region at full res
+  past a threshold" approach) — so a PDF background will blur somewhat at
+  extreme zoom. Ink drawn on top is unaffected (it's always vector).
+  Worth revisiting only if it's actually noticeable in practice.
+- One real bug hit and fixed during this build: pdf.js 6.5's
+  `page.render()` now requires a `canvas` field in its render params
+  (not just `canvasContext`) — a breaking API change from the version the
+  earlier PDF-export work was written against. Caught immediately by
+  `npm run build` (not by `tsc --noEmit`, which didn't flag it — same
+  class of "build catches what tsc alone misses" seen earlier this
+  session), one-line fix in `pdfjs.ts`.
+- **Verified live in the browser, a real round trip**: generated a small
+  2-page test PDF (distinct text on each page), imported it via
+  `importPdf` directly (bypassing the file-picker dialog, which can't be
+  driven by browser automation), confirmed a 2-page notebook was created
+  in the right folder, opened each page and confirmed the *correct,
+  distinct* PDF page rendered as the background on each (not just page 1
+  repeated), drew a pen stroke on top, then did a full page **reload**
+  and confirmed both the PDF background and the stroke were still there
+  — proving the `PdfSource` row and the stroke both really round-tripped
+  through IndexedDB, not just rendered once in memory. `npx tsc --noEmit`,
+  `npm run build`, and the full Vitest suite (98 tests, no regressions)
+  all pass.
+- **Not yet tablet-tested** — needs the real file-picker dialog (this
+  session verified the underlying `importPdf`/rendering logic directly,
+  since a native OS file picker can't be driven by browser automation)
+  and a real multi-page PDF from the tablet's own storage.
+
 ## In progress / next up, in order
 
-1. Phase 4: PDF **import** (pdf.js, installed, unused) — PDF **export**
-   is done, see below. Import is the architecturally bigger half: it
-   needs to render an existing PDF page as a background layer under the
-   ink in `InkCanvas.tsx` (a new rendering path, not the existing
-   pattern system), plus a new Dexie table to hold the source PDF bytes
-   per notebook. Deliberately not rushed in the same pass as export,
-   since it touches the already-stable, heavily-tested ink canvas.
-2. Phase 3 step-by-step: the engine already produces steps for solve/
+1. Phase 3 step-by-step: the engine already produces steps for solve/
    diff/integrate/series/etc.; this phase is mostly about *more* step
    coverage (more integration techniques — substitution, by parts — more
    equation types) and a nicer in-canvas UI than the current modal panel.
-3. Phase 5 extras (basic series RLC + unit conversion already done):
+2. Phase 5 extras (basic series RLC + unit conversion already done):
    phasor addition/subtraction UI, parallel impedance, AC power
    calculations — only if these turn out to matter in practice.
-5. Phase 2: offline recognition (ONNX + CoMER model, MathWriting dataset) —
+3. Phase 2: offline recognition (ONNX + CoMER model, MathWriting dataset) —
    deliberately last per Fahed's reordering. Nothing started yet.
-6. Phase 7 polish: full offline math (self-host Pyodide's wasm/data
+4. Phase 7 polish: full offline math (self-host Pyodide's wasm/data
    instead of the CDN — real work, not a toggle), code-split the >500KB
    JS chunk, real page-content thumbnails, remaining Tratto-comparison
    items (tags/search/favourites, consistent restyle of
