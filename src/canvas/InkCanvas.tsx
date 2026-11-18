@@ -45,7 +45,9 @@ function applyCalligraphyAngle(points: PagePoint[]): PagePoint[] {
     const prev = points[Math.max(0, i - 1)]
     const next = points[Math.min(points.length - 1, i + 1)]
     const angle = Math.atan2(next[1] - prev[1], next[0] - prev[0])
-    const factor = 0.35 + 0.65 * Math.abs(Math.sin(angle - NIB_ANGLE))
+    // Wide contrast, almost down to a hairline on the nib's own axis — a
+    // real chisel tip nearly disappears when drawn edge-on.
+    const factor = 0.12 + 0.88 * Math.abs(Math.sin(angle - NIB_ANGLE))
     return [x, y, pressure * factor]
   })
 }
@@ -55,14 +57,18 @@ let pencilTextureCanvas: HTMLCanvasElement | null = null
 function getPencilTexture(): HTMLCanvasElement {
   if (pencilTextureCanvas) return pencilTextureCanvas
   const c = document.createElement('canvas')
-  c.width = 24
-  c.height = 24
+  c.width = 32
+  c.height = 32
   const tctx = c.getContext('2d')!
   tctx.fillStyle = '#ffffff'
-  tctx.fillRect(0, 0, 24, 24)
-  tctx.fillStyle = 'rgba(0,0,0,0.6)'
-  for (let i = 0; i < 50; i++) {
-    tctx.fillRect(Math.random() * 24, Math.random() * 24, 1, 1)
+  tctx.fillRect(0, 0, 32, 32)
+  // Grains at varied size/darkness read as graphite sparkle far better
+  // than uniform single-pixel dots at one fixed opacity.
+  for (let i = 0; i < 140; i++) {
+    const shade = 0.25 + Math.random() * 0.55
+    tctx.fillStyle = `rgba(0,0,0,${shade})`
+    const w = Math.random() < 0.7 ? 1 : 2
+    tctx.fillRect(Math.random() * 32, Math.random() * 32, w, w)
   }
   pencilTextureCanvas = c
   return c
@@ -84,7 +90,7 @@ function paintPencilTexture(ctx: CanvasRenderingContext2D, path: Path2D, points:
   if (!pattern) return
   ctx.save()
   ctx.clip(path)
-  ctx.globalAlpha = 0.3
+  ctx.globalAlpha = 0.45
   ctx.globalCompositeOperation = 'multiply'
   ctx.fillStyle = pattern
   ctx.fillRect(minX - size, minY - size, maxX - minX + size * 2, maxY - minY + size * 2)
@@ -362,12 +368,18 @@ export default function InkCanvas({
       const isPen = strokeTool === 'pen'
       const penOptions = PEN_TYPE_OPTIONS[strokePenType ?? PEN_TYPES[0]]
       const inputPoints = isPen && strokePenType === 'calligraphy' ? applyCalligraphyAngle(points) : points
+      const taper = !isPen || penOptions.taper
       const stroke = getStroke(inputPoints, {
         size,
         thinning: isPen ? penOptions.thinning : 0.6,
         smoothing: isPen ? penOptions.smoothing : 0.5,
         streamline: isPen ? penOptions.streamline : 0.5,
         simulatePressure: false,
+        // A real ballpoint/marker/calligraphy nib stops at its full width;
+        // only fountain/pencil (and highlighter/eraser, unaffected by pen
+        // type) fade to a point the way the app always did.
+        start: { taper, cap: true },
+        end: { taper, cap: true },
       })
       const path = getSvgPathFromStroke(stroke)
       const svgPath = new Path2D(path)

@@ -877,6 +877,46 @@ icons instead of the text dropdown — both addressed together:
   differences (fountain, calligraphy) need the real S Pen to judge
   properly, now that they're confirmed to actually be applied.
 
+### Step H — Pen textures made more realistic: DONE ✅ (built, not yet tablet-tested)
+
+Fahed asked for more realistic textures/difference after Step G fixed
+pen types actually applying. The biggest remaining issue was taper, not
+texture: every pen type was still fading to a fine point at both stroke
+ends (perfect-freehand's default `start`/`end` behaviour), which is
+correct for a fountain pen but wrong for a ballpoint, marker, or
+calligraphy nib — those stop abruptly at full width in real life.
+
+- `src/canvas/colors.ts`: `PEN_TYPE_OPTIONS` gained a `taper: boolean`
+  per type. `fountain`/`pencil` keep `taper: true` (fade to a point);
+  `ballpoint`/`calligraphy`/`marker` are `taper: false` (blunt, constant
+  width at the ends). Also retuned the numbers themselves: ballpoint
+  thinner/crisper, pencil lower alpha (0.6, was 0.72) for a lighter
+  touch, marker a touch more translucent (0.78).
+- `src/canvas/InkCanvas.tsx`: `paintStroke` now passes `start`/`end: {
+  taper, cap: true }` to `getStroke` based on that flag (highlighter/
+  eraser/lasso unaffected — only `tool === 'pen'` reads it).
+  `applyCalligraphyAngle`'s contrast widened from `0.35–1.0` to
+  `0.12–1.0`, so a stroke along the nib's own axis comes out close to a
+  hairline instead of just "thinner" — much closer to how a real chisel
+  tip nearly vanishes edge-on. The pencil grain texture
+  (`getPencilTexture`/`paintPencilTexture`) was rebuilt: bigger tile
+  (32×32, was 24×24), more grains (140, was 50) at varied size and
+  per-grain opacity instead of uniform 1px dots at one fixed opacity, and
+  a stronger multiply blend (0.45 alpha, was 0.3) — reads as actual
+  graphite sparkle now rather than a faint haze.
+- Verified in the desktop browser preview, same page, size 8, strokes
+  drawn side by side: fountain tapers to a point at its start, ballpoint
+  right below it stays full-width/blunt at the same point — the taper
+  fix is clearly visible zoomed in. Pencil is visibly lighter/grainier
+  next to solid-black calligraphy. A near-horizontal calligraphy stroke
+  came out near-hairline while a diagonal one through it came out bold,
+  confirming the widened contrast. Marker's flat blunt end and
+  translucency (showing the fountain stroke underneath) both visible.
+  **Not yet tablet-tested** — this entire feature still rests on
+  synthetic/mouse pressure in the desktop preview; the real test is
+  whether fountain/calligraphy's pressure-driven width feels natural
+  under the actual S Pen.
+
 ### Still open from Fahed's "match the design" request
 
 - **Real page-content thumbnails** for notebook/folder cards (currently a
