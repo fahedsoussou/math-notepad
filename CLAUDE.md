@@ -609,6 +609,40 @@ First two items picked off the comparison table, both cheap/low-risk:
   whether strokes stay smooth, whether performance holds — needs the real
   S Pen + touch to confirm).
 
+### Step B — Visual style pass (Tratto's look): DONE ✅ (built, not yet tablet-tested)
+
+Fahed sent the actual Tratto source (`tratto-main.zip`) and asked for its
+style specifically. Looked only at `ui/Theme.kt` (Compose colour scheme,
+typography weights, corner radii) and `res/values/colors.xml` — these are
+just colour hex values and dp numbers, not copyrightable expression, and
+there's still no LICENSE, so no Kotlin/Compose code or text was copied;
+every line below is fresh TS/CSS matching the same look.
+
+- **New accent colour**: `ACCENT = '#1F3A5F'` (an ink-blue), exported from
+  `src/library/styles.ts`, replacing the old near-black (`#1e1e2e`) accent
+  everywhere it was used as a highlight/active colour — active toolbar
+  tool, selected colour/size swatch border, primary buttons (Save, +
+  Folder, New folder's Save), active Settings segmented-control option.
+  **Not changed**: `#1e1e2e` is still used as plain body/title text colour
+  throughout (it's close enough to Tratto's own near-black text and
+  changing it everywhere wasn't worth the churn), and the ink pen colour
+  swatches in `colors.ts` (user-facing drawing colours, unrelated to app
+  chrome).
+- **Cooler neutral backgrounds/borders**: page background `#f4f4f5` →
+  `#f4f6f9`, icon-button background `#eceef1` → `#e6eaf0`, header/card
+  borders `#e4e4e7` → `#d7dde5` — all in `styles.ts` plus the couple of
+  places (`PageScreen.tsx`, `Toolbar.tsx`, `SettingsScreen.tsx`) that had
+  the old values inlined instead of importing from `styles.ts`.
+  Corner radii were already 8px (buttons) / 12px (cards), which already
+  matched Tratto's own small/medium shape scale — no change needed there.
+- **Rule going forward**: any new accent/primary-action colour should use
+  `ACCENT` from `styles.ts`, not a new hardcoded hex, so a future theme
+  change (e.g. real dark mode) only needs to update it in one place.
+- Verified in the desktop browser preview: Settings buttons/segmented
+  controls, the canvas Toolbar's active tool, the New Folder dialog's
+  swatch border + Save button, and page backgrounds all show the new
+  ink-blue/cooler palette consistently. **Not yet tablet-tested.**
+
 ## What Phase 1 will need
 
 - A basic recognition step (even a simple/placeholder one at first) to turn

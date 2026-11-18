@@ -4,11 +4,15 @@
 
 import type { CSSProperties } from 'react'
 
+// Ink-blue accent, borrowed (as a style choice, not code) from Tratto's
+// look — a neutral, cool palette instead of the previous near-black accent.
+export const ACCENT = '#1F3A5F'
+
 export const page: CSSProperties = {
   position: 'fixed',
   inset: 0,
   overflowY: 'auto',
-  background: '#f4f4f5',
+  background: '#f4f6f9',
   fontFamily: 'sans-serif',
   color: '#1e1e2e',
 }
@@ -21,7 +25,7 @@ export const header: CSSProperties = {
   gap: 12,
   padding: '14px 16px',
   background: '#ffffff',
-  borderBottom: '1px solid #e4e4e7',
+  borderBottom: '1px solid #d7dde5',
   // Higher than InkCanvas's floating Toolbar (zIndex 5). Neither the
   // canvas's relatively-positioned wrapper divs set their own zIndex, so
   // they don't form a stacking context — the Toolbar's zIndex competes
@@ -44,7 +48,7 @@ export const headerTitle: CSSProperties = {
 
 export const iconButton: CSSProperties = {
   border: 'none',
-  background: '#eceef1',
+  background: '#e6eaf0',
   color: '#1e1e2e',
   borderRadius: 8,
   padding: '10px 14px',
@@ -54,7 +58,7 @@ export const iconButton: CSSProperties = {
 
 export const primaryButton: CSSProperties = {
   border: 'none',
-  background: '#1e1e2e',
+  background: ACCENT,
   color: 'white',
   borderRadius: 8,
   padding: '10px 16px',
@@ -92,7 +96,7 @@ export const card: CSSProperties = {
   borderRadius: 12,
   background: 'white',
   color: '#1e1e2e',
-  border: '1px solid #e4e4e7',
+  border: '1px solid #d7dde5',
   cursor: 'pointer',
   textAlign: 'left',
 }

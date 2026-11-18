@@ -46,7 +46,7 @@ function segmentButtonStyle(active: boolean): React.CSSProperties {
     padding: '10px 0',
     fontSize: 15,
     cursor: 'pointer',
-    background: active ? '#1e1e2e' : '#eceef1',
+    background: active ? s.ACCENT : '#e6eaf0',
     color: active ? 'white' : '#1e1e2e',
   }
 }

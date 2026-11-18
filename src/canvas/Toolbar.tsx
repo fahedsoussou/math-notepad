@@ -1,5 +1,6 @@
 import type { Tool } from './InkCanvas'
 import { PEN_COLORS, HIGHLIGHTER_COLORS, PEN_SIZES, HIGHLIGHTER_SIZES } from './colors'
+import { ACCENT } from '../library/styles'
 
 interface Props {
   tool: Tool
@@ -43,7 +44,7 @@ function toolButtonStyle(active: boolean): React.CSSProperties {
     padding: '8px 12px',
     fontSize: 14,
     cursor: 'pointer',
-    background: active ? '#1e1e2e' : '#eceef1',
+    background: active ? ACCENT : '#e6eaf0',
     color: active ? 'white' : '#1e1e2e',
   }
 }
@@ -114,7 +115,7 @@ export default function Toolbar({
                 height: 28,
                 borderRadius: '50%',
                 background: c,
-                border: color === c ? '3px solid #1e1e2e' : '3px solid transparent',
+                border: color === c ? `3px solid ${ACCENT}` : '3px solid transparent',
                 cursor: 'pointer',
               }}
             />
@@ -133,7 +134,7 @@ export default function Toolbar({
                 width: 32,
                 height: 32,
                 borderRadius: 8,
-                border: size === sz ? '2px solid #1e1e2e' : '2px solid #e4e4e7',
+                border: size === sz ? `2px solid ${ACCENT}` : '2px solid #e4e4e7',
                 background: 'white',
                 cursor: 'pointer',
                 display: 'flex',

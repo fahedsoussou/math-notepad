@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FOLDER_COLORS } from './colors'
+import { ACCENT } from './styles'
 
 interface Props {
   initialName?: string
@@ -57,7 +58,7 @@ export default function NewFolderDialog({ initialName = '', initialColor, onSave
                 height: 32,
                 borderRadius: '50%',
                 background: c,
-                border: color === c ? '3px solid #1e1e2e' : '3px solid transparent',
+                border: color === c ? `3px solid ${ACCENT}` : '3px solid transparent',
                 cursor: 'pointer',
               }}
             />
@@ -72,7 +73,7 @@ export default function NewFolderDialog({ initialName = '', initialColor, onSave
           </button>
           <button
             onClick={() => name.trim() && onSave(name.trim(), color)}
-            style={{ border: 'none', background: '#1e1e2e', color: 'white', borderRadius: 8, padding: '10px 16px', fontSize: 15, cursor: 'pointer' }}
+            style={{ border: 'none', background: ACCENT, color: 'white', borderRadius: 8, padding: '10px 16px', fontSize: 15, cursor: 'pointer' }}
           >
             Save
           </button>

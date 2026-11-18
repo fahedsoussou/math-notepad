@@ -45,7 +45,7 @@ export default function PageScreen({ pageId, onBack }: Props) {
   const paperColor = page.paperColor ?? 'white'
 
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#f4f4f5', color: '#1e1e2e' }}>
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#f4f6f9', color: '#1e1e2e' }}>
       <div style={s.header}>
         <button style={s.iconButton} onClick={onBack}>← Back</button>
         <div style={s.headerTitle}>{page.title}</div>
