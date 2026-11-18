@@ -107,6 +107,14 @@ class MathEngineClient {
   plot(expr: string, varName = 'x', xMin = -10, xMax = 10, samples = 200, notation?: NotationSettings, timeoutMs?: number) {
     return this.call<PlotResult>('plot_points', [expr, varName, xMin, xMax, samples, notation], timeoutMs)
   }
+  /** Phase 5 (electrical mode). Series RLC impedance at a given frequency. */
+  impedanceRLC(resistance: number, inductance: number, capacitance: number, frequencyHz: number, timeoutMs?: number) {
+    return this.call<ImpedanceResult>('impedance_rlc', [resistance, inductance, capacitance, frequencyHz], timeoutMs)
+  }
+  /** Phase 5 (electrical mode). Unit conversion via Pint. */
+  convertUnits(value: number, fromUnit: string, toUnit: string, timeoutMs?: number) {
+    return this.call<ConvertUnitsResult>('convert_units', [value, fromUnit, toUnit], timeoutMs)
+  }
 }
 
 export interface ExprFmt {
@@ -145,6 +153,20 @@ export interface PlotResult {
   error?: string
   xs?: number[]
   ys?: number[]
+}
+export interface ImpedanceResult {
+  ok: boolean
+  error?: string
+  steps?: { text: string }[]
+  rectangular?: { real: number; imag: number }
+  polar?: { magnitude: number; angle_deg: number }
+  verified?: boolean
+}
+export interface ConvertUnitsResult {
+  ok: boolean
+  error?: string
+  value?: number
+  unit?: string
 }
 
 export const mathEngine = new MathEngineClient()

@@ -35,6 +35,15 @@ to report — write down which line it was.
      the math engine…" wait) since it's already loaded for this session.
 8. Type `sin(x)`, tap the **Plot** mode button, then tap **Plot**.
    - **Expect**: a wavy sine-curve graph appears below the buttons.
+9. In Settings, scroll to "Math notation" and turn **Electrical mode**
+   on. Go back to a page, open Math — you should now see an extra
+   **Impedance** button.
+   - **Expect**: tapping it shows R/L/C/frequency number boxes instead
+     of the usual text box. Try R=100, L=0.01, C=0, f=60, tap Impedance.
+     You should see a few steps and a final answer with "verified" in
+     green.
+10. In Settings, turn Electrical mode back off if you don't want it — the
+    Impedance button should disappear from Math again.
 
 ## Writing feel (from earlier this session — re-check if you haven't yet)
 

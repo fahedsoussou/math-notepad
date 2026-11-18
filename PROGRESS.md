@@ -185,6 +185,38 @@ has to exist first.
 - PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused) — not
   started yet, next piece of Phase 4.
 
+### Phase 5: electrical mode — DONE, tested, working end-to-end
+- `pythonSource.ts` gained `convert_units(value, from_unit, to_unit)`
+  (via Pint) and `impedance_rlc(resistance, inductance, capacitance,
+  frequency_hz)` — series RLC impedance with a real step breakdown (R's
+  contribution, X_L, X_C, the rectangular form, then magnitude/angle),
+  verified by rebuilding the rectangular form from the polar result and
+  comparing to the original.
+- **Pint isn't a Pyodide built-in package** (confirmed by checking its
+  package lock, not assumed) but is pure Python, so `worker.ts` and
+  `pyodideHarness.ts` both now install it via `micropip` right after
+  loading sympy, before `PY_SOURCE` runs.
+- `client.ts` gained `impedanceRLC()` and `convertUnits()`.
+  `MathPanel.tsx` gained an "Impedance" mode — only shown when
+  `electricalMode` is on in Settings — with R/L/C/frequency number
+  fields instead of the usual expression box, same verified-step display
+  as everything else.
+- **Bug found and fixed**: the impedance verification check compared
+  against the **display-rounded** magnitude (6 significant figures)
+  instead of full precision — for impedances in the tens/hundreds+, 6-sig-
+  fig rounding error exceeds the 1e-6 check tolerance, so a *correct*
+  answer could come back marked "NOT verified". Fixed by doing the
+  verification arithmetic on the unrounded value and only rounding for
+  the displayed/returned numbers. Caught by a capacitor-only test case
+  (|Z|≈26.5 ohm) — worth remembering for any future `_steps` function:
+  **never verify against an already-rounded display value.**
+- Tests: 6 new (unit conversion x2, resistor-only/resonant/inductor-only/
+  capacitor-only impedance) — 74 tests total now.
+- **Verified live in the browser**: enabled Electrical mode in Settings,
+  the "Impedance" button appeared, computed R=100Ω + L=0.01H at 60Hz,
+  got the correct steps and a green "verified" result.
+- **Not yet tablet-tested.**
+
 ## In progress / next up, in order
 
 1. Phase 4: PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused
@@ -200,8 +232,9 @@ has to exist first.
    mostly about *more* step coverage (series expansion steps, more
    integration techniques — substitution, by parts — more equation types)
    and a nicer in-canvas UI than the current modal panel.
-4. Phase 5: electrical mode — Pint for units (not installed yet), phasors,
-   `j` as default imaginary unit (notation setting already supports it).
+4. Phase 5 extras (basic series RLC + unit conversion already done):
+   phasor addition/subtraction UI, parallel impedance, AC power
+   calculations — only if these turn out to matter in practice.
 5. Phase 6: series (with convergence-test steps), statistics (data table
    tool), matrices, ODEs, Laplace transforms — each needs its own
    `_steps`-style function in `pythonSource.ts` plus test-bank coverage.

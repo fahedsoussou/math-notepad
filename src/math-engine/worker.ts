@@ -26,7 +26,12 @@ async function getPyodide() {
       const indexURL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`
       const { loadPyodide } = await import(/* @vite-ignore */ `${indexURL}pyodide.mjs`)
       const pyodide = await loadPyodide({ indexURL })
-      await pyodide.loadPackage('sympy')
+      await pyodide.loadPackage(['sympy', 'micropip'])
+      // Pint (Phase 5, electrical mode's unit conversion) isn't a Pyodide
+      // built-in package, but it's pure Python, so micropip installs it
+      // from PyPI like pip would.
+      const micropip = pyodide.pyimport('micropip')
+      await micropip.install('pint')
       pyodide.runPython(PY_SOURCE)
       return pyodide
     })()
@@ -36,7 +41,7 @@ async function getPyodide() {
 
 export interface EngineRequest {
   id: number
-  fn: 'solve_steps' | 'diff_steps' | 'integrate_steps' | 'simplify_expr' | 'plot_points'
+  fn: 'solve_steps' | 'diff_steps' | 'integrate_steps' | 'simplify_expr' | 'plot_points' | 'impedance_rlc' | 'convert_units'
   args: unknown[]
 }
 

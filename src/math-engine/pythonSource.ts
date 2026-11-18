@@ -13,6 +13,12 @@ from sympy import symbols, sympify, Eq, solve, diff, integrate, simplify, latex,
 from sympy.core.function import AppliedUndef
 import random
 import traceback
+import pint
+
+# Electrical mode (Phase 5). Pint isn't a Pyodide built-in package, so it's
+# installed via micropip before this source runs (see worker.ts/
+# pyodideHarness.ts) — importing it here just uses what's already there.
+_UREG = pint.UnitRegistry()
 
 TRANSFORMATIONS_IMPLICIT = sympy.parsing.sympy_parser.standard_transformations + (
     sympy.parsing.sympy_parser.implicit_multiplication_application,
@@ -384,5 +390,68 @@ def plot_points(expr_str, var_name='x', x_min=-10, x_max=10, samples=200, notati
             except Exception:
                 continue
         return {'ok': True, 'xs': xs, 'ys': ys}
+    return _safe(run)
+
+# ---- Phase 5: Electrical mode --------------------------------------------
+
+def convert_units(value, from_unit, to_unit):
+    def run():
+        q = _UREG.Quantity(float(value), from_unit)
+        converted = q.to(to_unit)
+        return {'ok': True, 'value': converted.magnitude, 'unit': str(converted.units)}
+    return _safe(run)
+
+def impedance_rlc(resistance, inductance, capacitance, frequency_hz):
+    """Series RLC impedance at a given frequency, with the step-by-step
+    reactance breakdown an EE student would actually write out. Returns
+    magnitude/angle (polar) since that's how impedance is normally read
+    off, plus the rectangular a+bj form for anyone who wants to add it to
+    another impedance by hand."""
+    def run():
+        omega = 2 * sympy.pi * sympy.Float(frequency_hz)
+        R = sympy.Float(resistance)
+        steps = [{'text': f'R = {R} ohm (resistance contributes no reactance)'}]
+
+        XL = sympy.Float(0)
+        if inductance:
+            L = sympy.Float(inductance)
+            XL = omega * L
+            steps.append({'text': f'X_L = 2*pi*f*L = {sympy.N(XL, 6)} ohm (inductive reactance, +j)'})
+
+        XC = sympy.Float(0)
+        if capacitance:
+            C = sympy.Float(capacitance)
+            XC = 1 / (omega * C)
+            steps.append({'text': f'X_C = 1/(2*pi*f*C) = {sympy.N(XC, 6)} ohm (capacitive reactance, -j)'})
+
+        Z = R + sympy.I * (XL - XC)
+        # Full precision for the arithmetic/verification; only the
+        # *displayed* values below are rounded to 6 significant figures.
+        # Verifying against the rounded display value instead of this would
+        # fail for any impedance where 6-sig-fig rounding error exceeds the
+        # 1e-6 check tolerance (easily true once |Z| is in the tens+) — a
+        # false "not verified" on a correct answer, not a real problem.
+        magnitude_full = sympy.Abs(Z)
+        angle_rad = sympy.atan2(sympy.im(Z), sympy.re(Z))
+        magnitude = sympy.N(magnitude_full, 6)
+        angle_deg = sympy.N(angle_rad * 180 / sympy.pi, 6)
+        steps.append({'text': f'Z = R + j(X_L - X_C) = {sympy.N(sympy.re(Z), 6)} + {sympy.N(sympy.im(Z), 6)}j ohm'})
+        steps.append({'text': f'|Z| = {magnitude} ohm, angle = {angle_deg} degrees'})
+
+        # Numeric sanity check: rebuild the rectangular form from the
+        # full-precision polar result and compare — same spirit as the
+        # other _steps functions, verifying the answer rather than just
+        # trusting it.
+        rebuilt_real = magnitude_full * sympy.cos(angle_rad)
+        rebuilt_imag = magnitude_full * sympy.sin(angle_rad)
+        verified = abs(float(rebuilt_real) - float(sympy.re(Z))) < 1e-6 and abs(float(rebuilt_imag) - float(sympy.im(Z))) < 1e-6
+
+        return {
+            'ok': True,
+            'steps': [{'text': s['text']} for s in steps],
+            'rectangular': {'real': float(sympy.re(Z)), 'imag': float(sympy.im(Z))},
+            'polar': {'magnitude': float(magnitude), 'angle_deg': float(angle_deg)},
+            'verified': verified,
+        }
     return _safe(run)
 `

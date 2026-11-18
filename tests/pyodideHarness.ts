@@ -11,7 +11,9 @@ export function getPyodide(): Promise<PyodideInterface> {
   if (!pyodidePromise) {
     pyodidePromise = (async () => {
       const pyodide = await loadPyodide()
-      await pyodide.loadPackage('sympy')
+      await pyodide.loadPackage(['sympy', 'micropip'])
+      const micropip = pyodide.pyimport('micropip')
+      await micropip.install('pint')
       pyodide.runPython(PY_SOURCE)
       return pyodide
     })()

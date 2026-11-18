@@ -23,7 +23,7 @@ interface Props {
   onClose: () => void
 }
 
-type Mode = 'solve' | 'diff' | 'integrate' | 'simplify' | 'plot'
+type Mode = 'solve' | 'diff' | 'integrate' | 'simplify' | 'plot' | 'impedance'
 
 const MODE_LABELS: Record<Mode, string> = {
   solve: 'Solve',
@@ -31,6 +31,7 @@ const MODE_LABELS: Record<Mode, string> = {
   integrate: 'Integrate',
   simplify: 'Simplify',
   plot: 'Plot',
+  impedance: 'Impedance',
 }
 
 function Katex({ latex, text }: { latex?: string; text: string }) {
@@ -63,6 +64,17 @@ export default function MathPanel({ onClose }: Props) {
   const [engineError, setEngineError] = useState<string | null>(null)
   const [plotData, setPlotData] = useState<{ xs: number[]; ys: number[] } | null>(null)
   const plotRef = useRef<HTMLDivElement | null>(null)
+  const [resistance, setResistance] = useState('100')
+  const [inductance, setInductance] = useState('0')
+  const [capacitance, setCapacitance] = useState('0')
+  const [frequencyHz, setFrequencyHz] = useState('60')
+  const [impedanceResult, setImpedanceResult] = useState<{
+    rectangular: { real: number; imag: number }
+    polar: { magnitude: number; angle_deg: number }
+    verified: boolean
+  } | null>(null)
+
+  const availableModes = (Object.keys(MODE_LABELS) as Mode[]).filter((m) => m !== 'impedance' || settings.electricalMode)
 
   useEffect(() => {
     if (!plotData || !plotRef.current) return
@@ -109,7 +121,7 @@ export default function MathPanel({ onClose }: Props) {
   }
 
   const run = async () => {
-    if (!expr.trim()) return
+    if (mode !== 'impedance' && !expr.trim()) return
     setLoading(true)
     setError(null)
     setTimedOut(false)
@@ -117,8 +129,16 @@ export default function MathPanel({ onClose }: Props) {
     setSolutions(null)
     setFinalResult(null)
     setPlotData(null)
+    setImpedanceResult(null)
     try {
-      if (mode === 'plot') {
+      if (mode === 'impedance') {
+        const r = await mathEngine.impedanceRLC(Number(resistance) || 0, Number(inductance) || 0, Number(capacitance) || 0, Number(frequencyHz) || 0)
+        if (!r.ok || !r.rectangular || !r.polar) setError(r.error ?? 'Could not compute this.')
+        else {
+          setSteps((r.steps ?? []).map((s) => ({ text: s.text })))
+          setImpedanceResult({ rectangular: r.rectangular, polar: r.polar, verified: r.verified ?? false })
+        }
+      } else if (mode === 'plot') {
         const r = await mathEngine.plot(expr, varName, -10, 10, 200, notation)
         if (!r.ok || !r.xs || !r.ys) setError(r.error ?? 'Could not plot this.')
         else if (r.xs.length === 0) setError('Nothing plottable in this range (try a different variable or range).')
@@ -208,34 +228,56 @@ export default function MathPanel({ onClose }: Props) {
           </button>
         </div>
 
-        <input
-          value={expr}
-          onChange={(e) => setExpr(e.target.value)}
-          placeholder="e.g. x**2 - 5*x + 6 = 0"
-          style={{
-            padding: '10px 12px',
-            borderRadius: 8,
-            border: '1px solid #d7dde5',
-            fontSize: 16,
-            fontFamily: 'monospace',
-            background: 'white',
-            color: '#1e1e2e',
-          }}
-        />
-
-        {mode !== 'simplify' && (
-          <label style={{ fontSize: 13, color: '#4b5563', display: 'flex', alignItems: 'center', gap: 8 }}>
-            Variable
+        {mode === 'impedance' ? (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              { label: 'R (ohm)', value: resistance, set: setResistance },
+              { label: 'L (henry)', value: inductance, set: setInductance },
+              { label: 'C (farad)', value: capacitance, set: setCapacitance },
+              { label: 'f (Hz)', value: frequencyHz, set: setFrequencyHz },
+            ].map((f) => (
+              <label key={f.label} style={{ fontSize: 13, color: '#4b5563', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {f.label}
+                <input
+                  value={f.value}
+                  onChange={(e) => f.set(e.target.value)}
+                  style={{ width: 90, padding: '6px 8px', borderRadius: 6, border: '1px solid #d7dde5', background: 'white', color: '#1e1e2e' }}
+                />
+              </label>
+            ))}
+          </div>
+        ) : (
+          <>
             <input
-              value={varName}
-              onChange={(e) => setVarName(e.target.value || 'x')}
-              style={{ width: 48, padding: '4px 8px', borderRadius: 6, border: '1px solid #d7dde5', background: 'white', color: '#1e1e2e' }}
+              value={expr}
+              onChange={(e) => setExpr(e.target.value)}
+              placeholder="e.g. x**2 - 5*x + 6 = 0"
+              style={{
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid #d7dde5',
+                fontSize: 16,
+                fontFamily: 'monospace',
+                background: 'white',
+                color: '#1e1e2e',
+              }}
             />
-          </label>
+
+            {mode !== 'simplify' && (
+              <label style={{ fontSize: 13, color: '#4b5563', display: 'flex', alignItems: 'center', gap: 8 }}>
+                Variable
+                <input
+                  value={varName}
+                  onChange={(e) => setVarName(e.target.value || 'x')}
+                  style={{ width: 48, padding: '4px 8px', borderRadius: 6, border: '1px solid #d7dde5', background: 'white', color: '#1e1e2e' }}
+                />
+              </label>
+            )}
+          </>
         )}
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
+          {availableModes.map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
@@ -262,7 +304,7 @@ export default function MathPanel({ onClose }: Props) {
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={run}
-            disabled={loading || !expr.trim() || !engineReady}
+            disabled={loading || (mode !== 'impedance' && !expr.trim()) || !engineReady}
             style={{
               border: 'none',
               borderRadius: 8,
@@ -271,7 +313,7 @@ export default function MathPanel({ onClose }: Props) {
               cursor: loading ? 'default' : 'pointer',
               background: ACCENT,
               color: 'white',
-              opacity: loading || !expr.trim() || !engineReady ? 0.6 : 1,
+              opacity: loading || (mode !== 'impedance' && !expr.trim()) || !engineReady ? 0.6 : 1,
             }}
           >
             {loading ? 'Working…' : MODE_LABELS[mode]}
@@ -337,6 +379,21 @@ export default function MathPanel({ onClose }: Props) {
         )}
 
         {mode === 'plot' && <div ref={plotRef} style={{ display: plotData ? 'block' : 'none' }} />}
+
+        {impedanceResult && (
+          <div style={{ fontSize: 16, padding: 10, borderRadius: 8, background: '#eef3fb', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div>
+              Z = {impedanceResult.rectangular.real.toFixed(4)} {impedanceResult.rectangular.imag >= 0 ? '+' : '-'}{' '}
+              {Math.abs(impedanceResult.rectangular.imag).toFixed(4)}j ohm
+            </div>
+            <div>
+              |Z| = {impedanceResult.polar.magnitude.toFixed(4)} ohm at {impedanceResult.polar.angle_deg.toFixed(2)} degrees
+            </div>
+            <span style={{ fontSize: 12, color: impedanceResult.verified ? '#16a34a' : '#9b1c1c' }}>
+              {impedanceResult.verified ? 'verified' : 'NOT verified — check this'}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )
