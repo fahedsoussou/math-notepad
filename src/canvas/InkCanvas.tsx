@@ -879,6 +879,7 @@ export default function InkCanvas({
       finishLassoSelection,
       finishTouch,
       pageId,
+      penType,
       redrawLive,
       screenToPage,
       scratchOutEnabled,

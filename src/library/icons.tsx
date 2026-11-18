@@ -120,6 +120,51 @@ export function OverflowIcon({ size = 20 }: IconProps) {
   )
 }
 
+export function FountainPenIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l5 5-5 15-5-15z" />
+      <path d="M12 10v4" />
+    </svg>
+  )
+}
+
+export function BallpointPenIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="2" width="6" height="14" rx="2" />
+      <path d="M10 16l2 6 2-6z" />
+    </svg>
+  )
+}
+
+export function PencilIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 3h6v4l-3 15-3-15z" />
+      <path d="M9 7h6" />
+    </svg>
+  )
+}
+
+export function CalligraphyPenIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 19l5-5 4 4-5 5z" />
+      <path d="M10 14L18 6l2 2-8 8" />
+    </svg>
+  )
+}
+
+export function MarkerPenIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2h8l1 7H7z" />
+      <path d="M7 9h10l-2 13H9z" />
+    </svg>
+  )
+}
+
 export function PageIcon({ size = 20 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

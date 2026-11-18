@@ -846,6 +846,37 @@ write-with-finger, general settings) rather than add dead buttons — see
   targets and the page-counter chevrons especially need a real-hand
   check for comfortable spacing.
 
+### Step G — Pen-type icons + fix: pen types weren't actually applying: DONE ✅ (built, not yet tablet-tested)
+
+Fahed reported the pen types from Step C "don't work" and asked for
+icons instead of the text dropdown — both addressed together:
+
+- **Real bug, not just missing polish**: `handlePointerUp` in
+  `InkCanvas.tsx` builds the committed `Stroke` using `penType` from
+  component state, but `penType` was missing from that `useCallback`'s
+  dependency array. React kept the callback memoized with whatever
+  `penType` was captured the first time its other dependencies changed —
+  so **every stroke you actually drew got the old pen type**, no matter
+  what the dropdown showed, which is exactly "it doesn't work". Live
+  in-progress strokes looked right while drawing (that path already used
+  a ref, `penTypeRef.current`, which is always fresh) — only the
+  *committed* stroke silently reverted. Fixed by adding `penType` to the
+  dependency array. **Rule confirmed again: everything a `useCallback`/
+  `useEffect` reads from component state or props must be in its
+  dependency list — a ref is the one exception, by design.** Verified by
+  drawing with Fountain then Ballpoint back to back and zooming in: the
+  two are now visibly different widths, and reloading the page keeps
+  that difference (so it's really saved, not just visible mid-stroke).
+- `src/library/icons.tsx` gained `FountainPenIcon`, `BallpointPenIcon`,
+  `PencilIcon`, `CalligraphyPenIcon`, `MarkerPenIcon` — own simple line
+  icons, one per pen type.
+- `src/canvas/Toolbar.tsx`: the pen-type `<select>` dropdown from Step C
+  is gone, replaced by 5 icon buttons (same row position, same
+  highlight style as the main tool buttons) using a `PEN_TYPE_ICONS` map.
+- **Not yet tablet-tested** — same caveat as Step C: pressure-based width
+  differences (fountain, calligraphy) need the real S Pen to judge
+  properly, now that they're confirmed to actually be applied.
+
 ### Still open from Fahed's "match the design" request
 
 - **Real page-content thumbnails** for notebook/folder cards (currently a

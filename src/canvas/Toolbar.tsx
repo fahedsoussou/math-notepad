@@ -20,7 +20,20 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   OverflowIcon,
+  FountainPenIcon,
+  BallpointPenIcon,
+  PencilIcon,
+  CalligraphyPenIcon,
+  MarkerPenIcon,
 } from '../library/icons'
+
+const PEN_TYPE_ICONS: Record<PenType, (props: { size?: number }) => React.JSX.Element> = {
+  fountain: FountainPenIcon,
+  ballpoint: BallpointPenIcon,
+  pencil: PencilIcon,
+  calligraphy: CalligraphyPenIcon,
+  marker: MarkerPenIcon,
+}
 
 interface Props {
   tool: Tool
@@ -167,26 +180,22 @@ export default function Toolbar({
       )}
 
       {tool === 'pen' && (
-        <select
-          value={penType}
-          onChange={(e) => onPenTypeChange(e.target.value as PenType)}
-          aria-label="Pen type"
-          style={{
-            border: '1px solid #d7dde5',
-            borderRadius: 8,
-            padding: '8px 10px',
-            fontSize: 14,
-            color: '#1e1e2e',
-            background: 'white',
-            cursor: 'pointer',
-          }}
-        >
-          {PEN_TYPES.map((pt) => (
-            <option key={pt} value={pt}>
-              {PEN_TYPE_LABELS[pt]}
-            </option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {PEN_TYPES.map((pt) => {
+            const Icon = PEN_TYPE_ICONS[pt]
+            return (
+              <button
+                key={pt}
+                onClick={() => onPenTypeChange(pt)}
+                aria-label={PEN_TYPE_LABELS[pt]}
+                title={PEN_TYPE_LABELS[pt]}
+                style={toolButtonStyle(penType === pt)}
+              >
+                <Icon size={18} />
+              </button>
+            )
+          })}
+        </div>
       )}
 
       {showDrawingControls && (
