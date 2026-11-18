@@ -558,6 +558,57 @@ does now:
 - Nothing — lasso select (above) is the last unverified piece. Once it's
   gone through the verification checklist above, Phase 1A is complete.
 
+## Improvement pass — Tratto comparison (in progress 🚧)
+
+Before Phase 2, we studied **Tratto** (github.com/lampedev/tratto), a
+Kotlin/Jetpack Compose handwriting app for Samsung tablets with S Pen, as a
+reference for ideas, UI and behaviour only. **It has no LICENSE file**, so
+nothing was copied — every change below is our own fresh TypeScript/CSS,
+and its code is Kotlin/Compose anyway, so there was nothing copy-paste
+compatible with our Vite/React/TS stack even if it had a license. The repo
+was cloned to `../tratto-reference` (outside this project, gitignored by
+location, not tracked here).
+
+A full feature-by-feature comparison table (ink/pen prediction, pen types,
+zoom, lasso, eraser, shape recognition, paper templates, vector PDF export,
+PDF annotation, folders/tags/search, notebook links + graph view, PDF
+folder sync, Samsung Notes `.sdocx` import, overall look) was given to
+Fahed; he's picking which to build next, one at a time, tablet-tested and
+committed individually per the usual rule.
+
+### Step A — Paper colour + extended zoom: DONE ✅ (built, not yet tablet-tested)
+
+First two items picked off the comparison table, both cheap/low-risk:
+
+- `src/storage/db.ts`: added `PaperColor = 'white' | 'black' | 'blue' |
+  'graphite'` and an optional `Page.paperColor` field. Additive only, same
+  pattern as every prior schema addition — absent on old pages, defaults to
+  `'white'` when reading (no migration needed, Rule 2). `setPaperColor`
+  helper added alongside `setPageBackground`.
+- `src/canvas/background.ts`: exports `PAPER_COLORS`, a `{ fill, line }`
+  map per paper colour — the line/dot pattern colour is chosen per paper so
+  it stays visible on dark paper (e.g. a muted dark-blue-grey line on black
+  OLED, not the same grey used on white). `paintBackground` takes an
+  optional `paperColor` param (defaults to `'white'`).
+- `src/canvas/InkCanvas.tsx`: takes an optional `paperColor` prop, used for
+  the base canvas fill (replacing the old fixed `BG_COLOR` constant, now
+  removed) and passed through to `paintBackground`. Zoom clamp raised from
+  6× to **10×** (1000%, matching Tratto) — pinch-zoom only, no other UI
+  change needed since strokes/background already redraw at any scale via
+  the existing `scale`-aware line widths.
+- `src/library/PageScreen.tsx`: the existing "Background: …" dropdown
+  gained a row of 4 colour-swatch buttons (white/black/blue/graphite) below
+  the pattern list, writing straight to `setPaperColor` — same dropdown,
+  no new button, to keep the header from getting crowded.
+- Verified in the desktop browser preview: switching paper colours
+  repaints immediately; grid lines stay legible on black/blue/graphite;
+  switching background pattern and paper colour together works; reverted
+  cleanly back to white/blank. **Not yet verified**: pinch-zoom actually
+  reaching 1000% smoothly on the real tablet (the clamp change itself is a
+  one-line, low-risk number change, but zoom *feel* at extreme levels —
+  whether strokes stay smooth, whether performance holds — needs the real
+  S Pen + touch to confirm).
+
 ## What Phase 1 will need
 
 - A basic recognition step (even a simple/placeholder one at first) to turn

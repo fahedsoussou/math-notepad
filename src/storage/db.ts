@@ -30,6 +30,9 @@ export interface Notebook {
 
 export type PageBackground = 'blank' | 'lined' | 'grid' | 'dotted'
 
+/** Paper colour, independent of the line/dot pattern above. */
+export type PaperColor = 'white' | 'black' | 'blue' | 'graphite'
+
 export interface Page {
   id: string
   notebookId: string
@@ -38,6 +41,8 @@ export interface Page {
   title: string
   /** Added in schema v2; absent on pages written before that, default to 'blank' when reading. */
   background?: PageBackground
+  /** Added later; absent on older pages, default to 'white' when reading. */
+  paperColor?: PaperColor
   createdAt: number
   updatedAt: number
   deletedAt: number | null
@@ -287,6 +292,10 @@ export async function duplicatePage(id: string): Promise<Page | null> {
 
 export async function setPageBackground(id: string, background: PageBackground): Promise<void> {
   await db.pages.update(id, { background, updatedAt: Date.now() })
+}
+
+export async function setPaperColor(id: string, paperColor: PaperColor): Promise<void> {
+  await db.pages.update(id, { paperColor, updatedAt: Date.now() })
 }
 
 // ---- Strokes ----------------------------------------------------------

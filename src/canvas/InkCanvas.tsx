@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getStroke } from 'perfect-freehand'
 import { getSvgPathFromStroke } from './strokeToPath'
-import { paintBackground, type PageViewBounds } from './background'
+import { paintBackground, PAPER_COLORS, type PageViewBounds } from './background'
 import { PEN_COLORS, HIGHLIGHTER_COLORS, PEN_SIZES, HIGHLIGHTER_SIZES, HIGHLIGHTER_ALPHA, ERASER_SCREEN_RADIUS } from './colors'
 import { SYMBOL_PLACED_SIZE } from './symbols'
 import { strokeInPolygon, symbolInPolygon, selectionBounds, boundsContains, type Bounds } from './lasso'
@@ -16,13 +16,13 @@ import {
   deleteSymbol,
   updateSymbolPosition,
   type PageBackground,
+  type PaperColor,
   type Stroke,
   type PlacedSymbol,
 } from '../storage/db'
 
 export type Tool = 'pen' | 'highlighter' | 'eraser' | 'lasso'
 
-const BG_COLOR = '#f4f4f5'
 
 type PagePoint = [number, number, number] // x, y, pressure — all in page-space
 
@@ -143,7 +143,15 @@ function gestureOverlapsAnyStroke(points: PagePoint[], strokes: Stroke[], radius
  * drawn, repainted on every pointer move — keeping per-frame work small
  * regardless of how many strokes the page already has.
  */
-export default function InkCanvas({ pageId, background }: { pageId: string; background: PageBackground }) {
+export default function InkCanvas({
+  pageId,
+  background,
+  paperColor = 'white',
+}: {
+  pageId: string
+  background: PageBackground
+  paperColor?: PaperColor
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const liveCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -287,11 +295,11 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
     // Reset to plain device-pixel space to fill the background/clear,
     // then switch to the content transform for the grid + ink.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.fillStyle = BG_COLOR
+    ctx.fillStyle = PAPER_COLORS[paperColor].fill
     ctx.fillRect(0, 0, cssWidth, cssHeight)
 
     applyContentTransform(ctx, dpr)
-    paintBackground(ctx, background, getViewBounds(cssWidth, cssHeight), transformRef.current.scale)
+    paintBackground(ctx, background, getViewBounds(cssWidth, cssHeight), transformRef.current.scale, paperColor)
     for (const s of strokes) {
       paintStroke(ctx, s.points, s.color, s.size, s.tool)
     }
@@ -322,7 +330,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
         ctx.restore()
       }
     }
-  }, [applyContentTransform, background, getViewBounds, paintStroke, selection, strokes, symbols])
+  }, [applyContentTransform, background, getViewBounds, paintStroke, paperColor, selection, strokes, symbols])
 
   const redrawLive = useCallback(() => {
     const canvas = liveCanvasRef.current
@@ -630,7 +638,7 @@ export default function InkCanvas({ pageId, background }: { pageId: string; back
           if (lastPinch.current) {
             const t = transformRef.current
             const scaleFactor = distance / lastPinch.current.distance
-            const newScale = Math.min(6, Math.max(0.2, t.scale * scaleFactor))
+            const newScale = Math.min(10, Math.max(0.2, t.scale * scaleFactor))
             const actualFactor = newScale / t.scale
             // Zoom anchored at the OLD midpoint (keeps the page point under
             // it fixed on screen), then pan by how much the midpoint itself

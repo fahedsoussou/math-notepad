@@ -1,4 +1,4 @@
-import type { PageBackground } from '../storage/db'
+import type { PageBackground, PaperColor } from '../storage/db'
 
 /** A page-space rectangle currently visible on screen. */
 export interface PageViewBounds {
@@ -6,6 +6,14 @@ export interface PageViewBounds {
   top: number
   right: number
   bottom: number
+}
+
+/** Paper fill colour + a matching line/dot colour that stays visible on it. */
+export const PAPER_COLORS: Record<PaperColor, { fill: string; line: string }> = {
+  white: { fill: '#f4f4f5', line: '#d4d4d8' },
+  black: { fill: '#000000', line: '#2e2e33' },
+  blue: { fill: '#0b1f33', line: '#1e3a57' },
+  graphite: { fill: '#232326', line: '#3a3a3e' },
 }
 
 const SPACING = 32 // page-space units between lines/dots
@@ -20,11 +28,13 @@ export function paintBackground(
   background: PageBackground,
   bounds: PageViewBounds,
   scale: number,
+  paperColor: PaperColor = 'white',
 ) {
   if (background === 'blank') return
 
-  ctx.strokeStyle = '#d4d4d8'
-  ctx.fillStyle = '#d4d4d8'
+  const lineColor = PAPER_COLORS[paperColor].line
+  ctx.strokeStyle = lineColor
+  ctx.fillStyle = lineColor
   ctx.lineWidth = 1 / scale
 
   const startX = Math.floor(bounds.left / SPACING) * SPACING

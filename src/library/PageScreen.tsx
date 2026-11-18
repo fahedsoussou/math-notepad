@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { db, setPageBackground, type PageBackground } from '../storage/db'
+import { db, setPageBackground, setPaperColor, type PageBackground, type PaperColor } from '../storage/db'
 import InkCanvas from '../canvas/InkCanvas'
+import { PAPER_COLORS } from '../canvas/background'
 import * as s from './styles'
 import { useEntity } from './useEntity'
 
@@ -14,6 +15,13 @@ const BACKGROUND_LABELS: Record<PageBackground, string> = {
   lined: 'Lined',
   grid: 'Grid',
   dotted: 'Dotted',
+}
+
+const PAPER_COLOR_LABELS: Record<PaperColor, string> = {
+  white: 'White',
+  black: 'Black (OLED)',
+  blue: 'Blue',
+  graphite: 'Graphite',
 }
 
 export default function PageScreen({ pageId, onBack }: Props) {
@@ -34,6 +42,7 @@ export default function PageScreen({ pageId, onBack }: Props) {
   }
 
   const background = page.background ?? 'blank'
+  const paperColor = page.paperColor ?? 'white'
 
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#f4f4f5', color: '#1e1e2e' }}>
@@ -81,12 +90,30 @@ export default function PageScreen({ pageId, onBack }: Props) {
                   {BACKGROUND_LABELS[bg]}
                 </button>
               ))}
+              <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderTop: '1px solid #e4e4e7' }}>
+                {(Object.keys(PAPER_COLOR_LABELS) as PaperColor[]).map((pc) => (
+                  <button
+                    key={pc}
+                    onClick={() => setPaperColor(pageId, pc)}
+                    aria-label={PAPER_COLOR_LABELS[pc]}
+                    title={PAPER_COLOR_LABELS[pc]}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      background: PAPER_COLORS[pc].fill,
+                      border: pc === paperColor ? '2px solid #2563eb' : '1px solid #d4d4d8',
+                      cursor: 'pointer',
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
-        <InkCanvas pageId={pageId} background={background} />
+        <InkCanvas pageId={pageId} background={background} paperColor={paperColor} />
       </div>
     </div>
   )
