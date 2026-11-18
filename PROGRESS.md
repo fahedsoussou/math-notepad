@@ -217,7 +217,7 @@ has to exist first.
   got the correct steps and a green "verified" result.
 - **Not yet tablet-tested.**
 
-### Phase 6 (engine only so far): series, statistics, matrices, ODEs, Laplace
+### Phase 6: series, statistics, matrices, ODEs, Laplace (Stats + Matrix UI done, 3 left)
 - `pythonSource.ts` gained 5 new functions, all tested, none wired into
   `MathPanel.tsx` yet (see "next up" below — 5 genuinely different input
   shapes, didn't want to rush low-quality UI for all of them in one go):
@@ -265,15 +265,21 @@ has to exist first.
   Python actually receives).
 - Tests: 12 new (series ×2, stats ×2, matrices ×4, ODEs ×2, Laplace ×2) —
   86 tests total now.
+- **UI**: "Statistics" (comma-separated numbers) and "Matrix"
+  (determinant/inverse/eigenvalues, a small textarea for rows) modes
+  added to `MathPanel.tsx` — both verified live in the browser preview
+  (dataset `2,4,4,4,5,5,7,9` → correct mean/median/variance/std, all
+  green "verified"; `[[1,2],[3,4]]` determinant → -2, verified).
+  Series/ODE/Laplace UI still pending (see "next up").
 
 ## In progress / next up, in order
 
-1. Wire the 5 Phase 6 functions above into `MathPanel.tsx` — each needs
-   its own input shape (series: expr + expansion point + order; stats: a
-   list of numbers, maybe a simple comma-separated box to start; matrix:
-   a small grid input; ODE: an equation box with a note about the `y'`
-   shorthand; Laplace: an expr box) — more UI work than Phase 4/5's single
-   extra mode each, hence not rushed in the same pass as the engine code.
+1. Statistics and Matrix (determinant/inverse/eigenvalues) are now wired
+   into `MathPanel.tsx` too — see "Phase 6 UI" below. **Still not wired**:
+   series (needs expansion-point + order inputs), ODE (equation box +
+   explaining the `y'` shorthand), Laplace (expr box) — picked Stats/
+   Matrix first since their inputs are the simplest (a number list, a
+   small grid) of the five.
 2. Phase 4: PDF import/export (`pdf-lib`/`pdfjs-dist`, installed, unused
    yet).
 3. "Check my work" mode: user writes their solution line by line, app

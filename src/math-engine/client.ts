@@ -115,6 +115,14 @@ class MathEngineClient {
   convertUnits(value: number, fromUnit: string, toUnit: string, timeoutMs?: number) {
     return this.call<ConvertUnitsResult>('convert_units', [value, fromUnit, toUnit], timeoutMs)
   }
+  /** Phase 6. Descriptive statistics for a list of numbers. */
+  statsSummary(data: number[], timeoutMs?: number) {
+    return this.call<StatsResult>('stats_summary', [data], timeoutMs)
+  }
+  /** Phase 6. operation: 'determinant' | 'inverse' | 'eigenvalues'. */
+  matrixSteps(matrix: number[][], operation: 'determinant' | 'inverse' | 'eigenvalues', timeoutMs?: number) {
+    return this.call<MatrixResult>('matrix_steps', [matrix, operation], timeoutMs)
+  }
 }
 
 export interface ExprFmt {
@@ -167,6 +175,24 @@ export interface ConvertUnitsResult {
   error?: string
   value?: number
   unit?: string
+}
+export interface StatsResult {
+  ok: boolean
+  error?: string
+  steps?: { text: string }[]
+  mean?: number
+  median?: number
+  variance?: number
+  std_dev?: number
+  verified?: boolean
+}
+export interface MatrixResult {
+  ok: boolean
+  error?: string
+  steps?: { text: string }[]
+  result?: ExprFmt
+  eigenvalues?: { value: ExprFmt; multiplicity: number; verified: boolean }[]
+  verified?: boolean
 }
 
 export const mathEngine = new MathEngineClient()

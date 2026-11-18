@@ -23,7 +23,7 @@ interface Props {
   onClose: () => void
 }
 
-type Mode = 'solve' | 'diff' | 'integrate' | 'simplify' | 'plot' | 'impedance'
+type Mode = 'solve' | 'diff' | 'integrate' | 'simplify' | 'plot' | 'impedance' | 'stats' | 'matrix'
 
 const MODE_LABELS: Record<Mode, string> = {
   solve: 'Solve',
@@ -32,6 +32,15 @@ const MODE_LABELS: Record<Mode, string> = {
   simplify: 'Simplify',
   plot: 'Plot',
   impedance: 'Impedance',
+  stats: 'Statistics',
+  matrix: 'Matrix',
+}
+
+type MatrixOp = 'determinant' | 'inverse' | 'eigenvalues'
+const MATRIX_OP_LABELS: Record<MatrixOp, string> = {
+  determinant: 'Determinant',
+  inverse: 'Inverse',
+  eigenvalues: 'Eigenvalues',
 }
 
 function Katex({ latex, text }: { latex?: string; text: string }) {
@@ -72,6 +81,17 @@ export default function MathPanel({ onClose }: Props) {
     rectangular: { real: number; imag: number }
     polar: { magnitude: number; angle_deg: number }
     verified: boolean
+  } | null>(null)
+  const [statsInput, setStatsInput] = useState('2, 4, 4, 4, 5, 5, 7, 9')
+  const [statsResult, setStatsResult] = useState<{ mean: number; median: number; variance: number; std_dev: number; verified: boolean } | null>(
+    null,
+  )
+  const [matrixInput, setMatrixInput] = useState('1, 2\n3, 4')
+  const [matrixOp, setMatrixOp] = useState<MatrixOp>('determinant')
+  const [matrixResult, setMatrixResult] = useState<{
+    text: string
+    verified: boolean
+    eigenvalues?: { value: { text: string }; multiplicity: number; verified: boolean }[]
   } | null>(null)
 
   const availableModes = (Object.keys(MODE_LABELS) as Mode[]).filter((m) => m !== 'impedance' || settings.electricalMode)
@@ -120,8 +140,10 @@ export default function MathPanel({ onClose }: Props) {
     implicit_multiplication: settings.implicitMultiplication ?? true,
   }
 
+  const needsExpr = mode !== 'impedance' && mode !== 'stats' && mode !== 'matrix'
+
   const run = async () => {
-    if (mode !== 'impedance' && !expr.trim()) return
+    if (needsExpr && !expr.trim()) return
     setLoading(true)
     setError(null)
     setTimedOut(false)
@@ -130,8 +152,49 @@ export default function MathPanel({ onClose }: Props) {
     setFinalResult(null)
     setPlotData(null)
     setImpedanceResult(null)
+    setStatsResult(null)
+    setMatrixResult(null)
     try {
-      if (mode === 'impedance') {
+      if (mode === 'stats') {
+        const data = statsInput
+          .split(',')
+          .map((s) => Number(s.trim()))
+          .filter((n) => !Number.isNaN(n))
+        if (data.length === 0) {
+          setError('Enter at least one number, separated by commas.')
+        } else {
+          const r = await mathEngine.statsSummary(data)
+          if (!r.ok || r.mean === undefined) setError(r.error ?? 'Could not compute this.')
+          else {
+            setSteps((r.steps ?? []).map((s) => ({ text: s.text })))
+            setStatsResult({ mean: r.mean, median: r.median!, variance: r.variance!, std_dev: r.std_dev!, verified: r.verified ?? false })
+          }
+        }
+      } else if (mode === 'matrix') {
+        try {
+          const rows = matrixInput
+            .trim()
+            .split('\n')
+            .map((line) => line.split(',').map((s) => Number(s.trim())))
+          if (rows.some((row) => row.some((n) => Number.isNaN(n)))) throw new Error('bad')
+          const r = await mathEngine.matrixSteps(rows, matrixOp)
+          if (!r.ok) setError(r.error ?? 'Could not compute this.')
+          else {
+            setSteps((r.steps ?? []).map((s) => ({ text: s.text })))
+            if (matrixOp === 'eigenvalues') {
+              setMatrixResult({
+                text: (r.eigenvalues ?? []).map((e) => `${e.value.text} (x${e.multiplicity})`).join(', '),
+                verified: r.verified ?? false,
+                eigenvalues: r.eigenvalues,
+              })
+            } else {
+              setMatrixResult({ text: r.result?.text ?? '', verified: r.verified ?? false })
+            }
+          }
+        } catch {
+          setError('Enter rows of numbers separated by commas, one row per line — e.g. "1, 2" then "3, 4".')
+        }
+      } else if (mode === 'impedance') {
         const r = await mathEngine.impedanceRLC(Number(resistance) || 0, Number(inductance) || 0, Number(capacitance) || 0, Number(frequencyHz) || 0)
         if (!r.ok || !r.rectangular || !r.polar) setError(r.error ?? 'Could not compute this.')
         else {
@@ -246,6 +309,46 @@ export default function MathPanel({ onClose }: Props) {
               </label>
             ))}
           </div>
+        ) : mode === 'stats' ? (
+          <label style={{ fontSize: 13, color: '#4b5563', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            Numbers, separated by commas
+            <input
+              value={statsInput}
+              onChange={(e) => setStatsInput(e.target.value)}
+              style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d7dde5', fontSize: 15, fontFamily: 'monospace', background: 'white', color: '#1e1e2e' }}
+            />
+          </label>
+        ) : mode === 'matrix' ? (
+          <>
+            <label style={{ fontSize: 13, color: '#4b5563', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              One row per line, numbers separated by commas
+              <textarea
+                value={matrixInput}
+                onChange={(e) => setMatrixInput(e.target.value)}
+                rows={3}
+                style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d7dde5', fontSize: 15, fontFamily: 'monospace', background: 'white', color: '#1e1e2e', resize: 'vertical' }}
+              />
+            </label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(Object.keys(MATRIX_OP_LABELS) as MatrixOp[]).map((op) => (
+                <button
+                  key={op}
+                  onClick={() => setMatrixOp(op)}
+                  style={{
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '6px 10px',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    background: matrixOp === op ? ACCENT : '#e6eaf0',
+                    color: matrixOp === op ? 'white' : '#1e1e2e',
+                  }}
+                >
+                  {MATRIX_OP_LABELS[op]}
+                </button>
+              ))}
+            </div>
+          </>
         ) : (
           <>
             <input
@@ -304,7 +407,7 @@ export default function MathPanel({ onClose }: Props) {
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={run}
-            disabled={loading || (mode !== 'impedance' && !expr.trim()) || !engineReady}
+            disabled={loading || (needsExpr && !expr.trim()) || !engineReady}
             style={{
               border: 'none',
               borderRadius: 8,
@@ -313,7 +416,7 @@ export default function MathPanel({ onClose }: Props) {
               cursor: loading ? 'default' : 'pointer',
               background: ACCENT,
               color: 'white',
-              opacity: loading || (mode !== 'impedance' && !expr.trim()) || !engineReady ? 0.6 : 1,
+              opacity: loading || (needsExpr && !expr.trim()) || !engineReady ? 0.6 : 1,
             }}
           >
             {loading ? 'Working…' : MODE_LABELS[mode]}
@@ -391,6 +494,27 @@ export default function MathPanel({ onClose }: Props) {
             </div>
             <span style={{ fontSize: 12, color: impedanceResult.verified ? '#16a34a' : '#9b1c1c' }}>
               {impedanceResult.verified ? 'verified' : 'NOT verified — check this'}
+            </span>
+          </div>
+        )}
+
+        {statsResult && (
+          <div style={{ fontSize: 16, padding: 10, borderRadius: 8, background: '#eef3fb', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div>Mean = {statsResult.mean.toFixed(4)}, Median = {statsResult.median.toFixed(4)}</div>
+            <div>
+              Variance = {statsResult.variance.toFixed(4)}, Std dev = {statsResult.std_dev.toFixed(4)}
+            </div>
+            <span style={{ fontSize: 12, color: statsResult.verified ? '#16a34a' : '#9b1c1c' }}>
+              {statsResult.verified ? 'verified' : 'NOT verified — check this'}
+            </span>
+          </div>
+        )}
+
+        {matrixResult && (
+          <div style={{ fontSize: 16, padding: 10, borderRadius: 8, background: '#eef3fb', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ wordBreak: 'break-word' }}>{matrixResult.text}</div>
+            <span style={{ fontSize: 12, color: matrixResult.verified ? '#16a34a' : '#9b1c1c' }}>
+              {matrixResult.verified ? 'verified' : 'NOT verified — check this'}
             </span>
           </div>
         )}

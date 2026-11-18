@@ -44,6 +44,13 @@ to report — write down which line it was.
      green.
 10. In Settings, turn Electrical mode back off if you don't want it — the
     Impedance button should disappear from Math again.
+11. In Math, tap **Statistics**, leave the default numbers, tap
+    Statistics.
+    - **Expect**: Mean/Median/Variance/Std dev with "verified" in green.
+12. Tap **Matrix**, leave the default `1, 2` / `3, 4`, tap Determinant
+    (already selected), then Matrix.
+    - **Expect**: result "-2" with "verified" in green. Try the Inverse
+      and Eigenvalues buttons too with the same numbers.
 
 ## Writing feel (from earlier this session — re-check if you haven't yet)
 

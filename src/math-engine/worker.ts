@@ -41,7 +41,16 @@ async function getPyodide() {
 
 export interface EngineRequest {
   id: number
-  fn: 'solve_steps' | 'diff_steps' | 'integrate_steps' | 'simplify_expr' | 'plot_points' | 'impedance_rlc' | 'convert_units'
+  fn:
+    | 'solve_steps'
+    | 'diff_steps'
+    | 'integrate_steps'
+    | 'simplify_expr'
+    | 'plot_points'
+    | 'impedance_rlc'
+    | 'convert_units'
+    | 'stats_summary'
+    | 'matrix_steps'
   args: unknown[]
 }
 
